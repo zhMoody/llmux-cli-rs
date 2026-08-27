@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="lavender">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LLMux — 个人本地 AI 网关</title>
+  <!-- Font Awesome 图标（国内 CDN：bootcdn） -->
+  <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous" />
+<meta name="description" content="为开发者打造的个人本地 AI API 网关与多路复用器。把主流 AI 模型收进一个本地入口，一键故障切换、密钥隔离、接入常用编码 CLI。" />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a78bfa'/%3E%3Cstop offset='0.5' stop-color='%23f9a8d4'/%3E%3Cstop offset='1' stop-color='%237dd3fc'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M18 5 L9 18 h6 l-1 9 L23 14 h-6 z' fill='%23ffffff' opacity='0.95'/%3E%3C/svg%3E" />
+
+<!-- ── 马卡龙多色板主题系统（与 llmux_ui/src/index.css 同源）── ──
+     明暗由 .dark 控制；色板由 [data-theme] 控制（默认 lavender）。
+     下方变量块为全文核心，落地页 / 卡片 / 按钮全部基于这些 token。 -->
+<style>
+  :root {
+    /* 默认色板：lavender（紫）· 浅色 */
+    --background: 32 85% 97%;
+    --foreground: 260 15% 28%;
+    --card: 35 55% 98%;
+    --card-foreground: 260 15% 28%;
+    --primary: 258 90% 74%;
+    --primary-foreground: 258 60% 16%;
+    --secondary: 330 90% 94%;
+    --secondary-foreground: 330 55% 42%;
+    --accent: 200 95% 94%;
+    --accent-foreground: 200 65% 38%;
+    --muted: 32 45% 94%;
+    --muted-foreground: 260 10% 52%;
+    --border: 330 40% 91%;
+    --input: 330 40% 91%;
+    --ring: 258 85% 78%;
+    --shadow-soft: 258 40% 70% / 0.18;
+    --success: 160 65% 55%;
+    --warning: 45 92% 62%;
+    --destructive: 350 75% 72%;
+    --radius: 1rem;
+  }
+  [data-theme="mint"] {
+    --background: 165 55% 96%;
+    --foreground: 175 35% 22%;
+    --card: 160 45% 98%;
+    --card-foreground: 175 35% 22%;
+    --primary: 160 65% 52%;
+    --primary-foreground: 160 60% 10%;
+    --secondary: 200 80% 93%;
+    --secondary-foreground: 200 55% 35%;
+    --accent: 140 60% 92%;
+    --accent-foreground: 150 55% 32%;
+    --muted: 165 40% 93%;
+    --muted-foreground: 175 20% 48%;
+    --border: 170 40% 90%;
+    --input: 170 40% 90%;
+    --ring: 160 70% 60%;
+    --shadow-soft: 160 50% 60% / 0.16;
+  }
+  [data-theme="peach"] {
+    --background: 25 70% 96%;
+    --foreground: 25 35% 24%;
+    --card: 30 55% 98%;
+    --card-foreground: 25 35% 24%;
+    --primary: 22 85% 68%;
+    --primary-foreground: 22 70% 14%;
+    --secondary: 330 80% 94%;
+    --secondary-foreground: 330 50% 40%;
+    --accent: 40 85% 94%;
+    --accent-foreground: 40 65% 35%;
+    --muted: 25 45% 93%;
+    --muted-foreground: 25 25% 48%;
+    --border: 25 45% 90%;
+    --input: 25 45% 90%;
+    --ring: 22 80% 70%;
+    --shadow-soft: 25 55% 60% / 0.16;
+  }
+  [data-theme="ocean"] {
+    --background: 205 60% 96%;
+    --foreground: 220 35% 24%;
+    --card: 210 50% 98%;
+    --card-foreground: 220 35% 24%;
+    --primary: 215 80% 65%;
+    --primary-foreground: 215 70% 14%;
+    --secondary: 265 70% 94%;
+    --secondary-foreground: 265 50% 40%;
+    --accent: 190 70% 93%;
+    --accent-foreground: 190 60% 34%;
+    --muted: 210 40% 93%;
+    --muted-foreground: 220 25% 48%;
+    --border: 215 40% 90%;
+    --input: 215 40% 90%;
+    --ring: 215 80% 70%;
+    --shadow-soft: 215 55% 60% / 0.16;
+  }
+  [data-theme="azure"] {
+    --background: 210 40% 96.1%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222 47.4% 11.2%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --shadow-soft: 221.2 60% 60% / 0.18;
+  }
+  [data-theme="rose"] {
+    --background: 340 55% 96%;
+    --foreground: 340 30% 26%;
+    --card: 345 45% 98%;
+    --card-foreground: 340 30% 26%;
+    --primary: 340 75% 70%;
+    --primary-foreground: 340 65% 16%;
+    --secondary: 300 55% 94%;
+    --secondary-foreground: 300 45% 40%;
+    --accent: 20 80% 94%;
+    --accent-foreground: 20 65% 36%;
+    --muted: 340 40% 93%;
+    --muted-foreground: 340 20% 50%;
+    --border: 340 40% 90%;
+    --input: 340 40% 90%;
+    --ring: 340 75% 72%;
+    --shadow-soft: 340 50% 60% / 0.16;
+  }
+  /* 全局深色语义色 + 默认色板 lavender 深色 */
+  .dark {
+    --background: 258 25% 13%;
+    --foreground: 258 22% 90%;
+    --card: 258 26% 17%;
+    --card-foreground: 258 22% 90%;
+    --primary: 258 92% 76%;
+    --primary-foreground: 258 70% 15%;
+    --secondary: 330 26% 25%;
+    --secondary-foreground: 330 70% 88%;
+    --accent: 200 26% 24%;
+    --accent-foreground: 200 60% 88%;
+    --muted: 258 20% 21%;
+    --muted-foreground: 258 12% 64%;
+    --border: 258 20% 27%;
+    --input: 258 20% 27%;
+    --ring: 258 60% 64%;
+    --shadow-soft: 258 60% 60% / 0.12;
+    --success: 160 65% 58%;
+    --warning: 45 90% 66%;
+    --destructive: 350 68% 66%;
+  }
+  [data-theme="mint"].dark {
+    --background: 170 30% 12%;
+    --foreground: 165 20% 88%;
+    --card: 168 26% 16%;
+    --card-foreground: 165 20% 88%;
+    --primary: 160 70% 55%;
+    --primary-foreground: 160 55% 10%;
+    --secondary: 200 24% 23%;
+    --secondary-foreground: 200 55% 88%;
+    --accent: 150 24% 22%;
+    --accent-foreground: 150 55% 88%;
+    --muted: 168 22% 20%;
+    --muted-foreground: 170 15% 62%;
+    --border: 168 22% 26%;
+    --input: 168 22% 26%;
+    --ring: 160 55% 55%;
+    --shadow-soft: 160 55% 55% / 0.12;
+  }
+  [data-theme="peach"].dark {
+    --background: 22 30% 12%;
+    --foreground: 25 25% 88%;
+    --card: 24 27% 16%;
+    --card-foreground: 25 25% 88%;
+    --primary: 22 90% 68%;
+    --primary-foreground: 22 65% 12%;
+    --secondary: 330 26% 24%;
+    --secondary-foreground: 330 55% 88%;
+    --accent: 40 28% 23%;
+    --accent-foreground: 40 60% 88%;
+    --muted: 24 24% 20%;
+    --muted-foreground: 25 18% 62%;
+    --border: 24 24% 26%;
+    --input: 24 24% 26%;
+    --ring: 22 75% 58%;
+    --shadow-soft: 22 55% 55% / 0.12;
+  }
+  [data-theme="ocean"].dark {
+    --background: 220 30% 12%;
+    --foreground: 215 22% 88%;
+    --card: 218 26% 16%;
+    --card-foreground: 215 22% 88%;
+    --primary: 215 82% 68%;
+    --primary-foreground: 215 60% 12%;
+    --secondary: 265 25% 24%;
+    --secondary-foreground: 265 55% 88%;
+    --accent: 190 24% 23%;
+    --accent-foreground: 190 55% 88%;
+    --muted: 218 22% 20%;
+    --muted-foreground: 215 18% 62%;
+    --border: 218 22% 26%;
+    --input: 218 22% 26%;
+    --ring: 215 60% 60%;
+    --shadow-soft: 215 55% 55% / 0.12;
+  }
+  [data-theme="azure"].dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --shadow-soft: 217 60% 60% / 0.12;
+  }
+  [data-theme="rose"].dark {
+    --background: 340 28% 13%;
+    --foreground: 340 20% 88%;
+    --card: 342 24% 17%;
+    --card-foreground: 340 20% 88%;
+    --primary: 340 80% 72%;
+    --primary-foreground: 340 60% 14%;
+    --secondary: 300 22% 24%;
+    --secondary-foreground: 300 50% 88%;
+    --accent: 20 26% 23%;
+    --accent-foreground: 20 55% 88%;
+    --muted: 342 22% 21%;
+    --muted-foreground: 340 15% 62%;
+    --border: 342 22% 27%;
+    --input: 342 22% 27%;
+    --ring: 340 60% 62%;
+    --shadow-soft: 340 55% 55% / 0.12;
+  }
+
+  * { box-sizing: border-box; }
+  * { border-color: hsl(var(--border)); }
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.6;
+    transition: background 0.35s ease, color 0.35s ease;
+  }
+
+  ::selection { background: hsl(var(--primary) / 0.25); }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.25); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.4); }
+
+  .container { max-width: 1080px; margin: 0 auto; padding: 0 1.5rem; }
+  section { padding: 4.5rem 0; }
+  .muted { color: hsl(var(--muted-foreground)); }
+  a { color: inherit; text-decoration: none; }
+
+  /* ── 按钮（胶囊 · 与 Button.tsx 同构）── */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+    border: 1px solid transparent; border-radius: 9999px;
+    font-weight: 500; cursor: pointer;
+    transition: all 0.2s ease; white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:focus-visible { outline: none; box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring)); }
+  .btn-primary { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); box-shadow: 0 6px 24px -8px hsl(var(--shadow-soft) ); }
+  .btn-primary:hover { background: hsl(var(--primary) / 0.9); }
+  .btn-secondary { background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); }
+  .btn-secondary:hover { background: hsl(var(--secondary) / 0.8); }
+  .btn-outline { border-color: hsl(var(--border)); color: hsl(var(--foreground)); background: transparent; }
+  .btn-outline:hover { background: hsl(var(--muted)); }
+  .btn-ghost { color: hsl(var(--muted-foreground)); background: transparent; }
+  .btn-ghost:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+  .btn-lg { padding: 0.85rem 1.75rem; font-size: 1.05rem; }
+  .btn-md { padding: 0.6rem 1.2rem; font-size: 0.95rem; }
+  .btn-sm { padding: 0.4rem 0.9rem; font-size: 0.85rem; }
+
+  /* ── 卡片 ── */
+  .card {
+    background: hsl(var(--card)); color: hsl(var(--card-foreground));
+    border: 1px solid hsl(var(--border)); border-radius: var(--radius);
+    box-shadow: 0 10px 30px -12px hsl(var(--shadow-soft));
+  }
+  .macaron {
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.07), hsl(var(--secondary) / 0.18), hsl(var(--accent) / 0.14));
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    font-size: 0.8rem; font-weight: 500;
+    padding: 0.2rem 0.7rem; border-radius: 9999px;
+    border: 1px solid hsl(var(--border));
+    background: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* ── 顶栏 ── */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(12px);
+    background: hsl(var(--background) / 0.72);
+    border-bottom: 1px solid hsl(var(--border) / 0.6);
+  }
+  .topbar-inner { display: flex; align-items: center; gap: 1rem; justify-content: space-between; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 0.6rem; font-weight: 600; }
+  .brand svg { width: 30px; height: 30px; }
+  .nav { display: flex; align-items: center; gap: 1.4rem; font-size: 0.92rem; }
+  .nav a { color: hsl(var(--muted-foreground)); transition: color 0.15s; font-weight: 500; }
+  .nav a:hover { color: hsl(var(--foreground)); }
+  .top-controls { display: flex; align-items: center; gap: 0.5rem; }
+
+  .theme-dots { display: flex; gap: 0.35rem; align-items: center; }
+  .theme-dot { width: 16px; height: 16px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform 0.15s, border-color 0.15s; }
+  .theme-dot:hover { transform: scale(1.15); }
+  .theme-dot.active { border-color: hsl(var(--foreground)); }
+
+  .iconbtn {
+    border: 1px solid hsl(var(--border)); background: hsl(var(--card));
+    color: hsl(var(--foreground)); border-radius: 9999px;
+    width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .iconbtn:hover { background: hsl(var(--muted)); }
+
+  /* Font Awesome 图标尺寸（颜色跟随容器 currentColor） */
+  .feature .ic i { font-size: 21px; }
+  .chip i { font-size: 13px; }
+  .iconbtn i { font-size: 15px; }
+
+  /* ── Hero ── */
+  .hero { position: relative; overflow: hidden; padding: 6.5rem 0 5.5rem; }
+  .hero::before {
+    content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.10), transparent 45%, hsl(var(--accent) / 0.10));
+  }
+  .hero .container { position: relative; z-index: 1; text-align: center; }
+  .hero h1 { font-size: clamp(2.4rem, 6vw, 3.7rem); line-height: 1.1; margin: 0 0 1.2rem; font-weight: 800; letter-spacing: -0.02em; }
+  .hero .lede { font-size: clamp(1.05rem, 2.4vw, 1.28rem); max-width: 620px; margin: 0 auto; }
+  .hero-actions { display: flex; gap: 0.8rem; flex-wrap: wrap; margin-top: 2.4rem; justify-content: center; }
+  .hero-badges { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 2.2rem; justify-content: center; }
+
+  .logo-mark {
+    width: 88px; height: 88px; border-radius: 24px;
+    display: inline-flex; align-items: center; justify-content: center;
+    box-shadow: 0 12px 30px -10px hsl(var(--shadow-soft));
+    margin-bottom: 1.6rem;
+  }
+  .hero .logo-mark svg { width: 56px; height: 56px; }
+
+  /* 终端代码块 */
+  .code-wrap { position: relative; }
+  /* 程序员化：等宽字体（配色不动，仅字体与终端装饰） */
+  :root { --mono: "SF Mono", SFMono-Regular, ui-monospace, Menlo, Consolas, monospace; }
+  .chip, .protocol, .stat .num, .term-title { font-family: var(--mono); }
+  .term-banner { margin-top: 1.4rem; max-width: 580px; }
+  .term-bar { display: flex; align-items: center; gap: 6px; background: hsl(var(--card-foreground)); color: hsl(var(--muted-foreground)); padding: 0.55rem 0.9rem; border: 1px solid hsl(var(--border)); border-bottom: none; border-radius: var(--radius) var(--radius) 0 0; }
+  .term-bar .t-dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+  .term-title { margin-left: 6px; font-size: 0.78rem; color: hsl(var(--card) / 0.7); }
+  .term-body { background: hsl(var(--card-foreground)); color: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-top: none; border-radius: 0 0 var(--radius) var(--radius); padding: 0.95rem 1.15rem; font-family: var(--mono); font-size: 0.84rem; line-height: 1.7; overflow-x: auto; white-space: nowrap; }
+  .term-body .dollar { color: hsl(var(--primary)); font-weight: 600; }
+  .term-body .cmt { color: hsl(var(--muted-foreground)); }
+  /* 打字机特效 */
+  .type-line { margin-top: 2rem; font-family: var(--mono); font-size: 1.05rem; color: hsl(var(--foreground)); min-height: 1.4em; display: flex; align-items: center; justify-content: center; }
+  .type-prefix { color: hsl(var(--primary)); font-weight: 600; }
+  .cursor { display: inline-block; width: 0.08em; height: 0.9em; background: hsl(var(--primary)); margin-left: 0.08em; vertical-align: -0.1em; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .code-window {
+    background: hsl(var(--card-foreground)); color: hsl(var(--card));
+    border-radius: 0 0 var(--radius) var(--radius); border: 1px solid hsl(var(--border));
+    border-top: none; /* 与 term-bar 拼接成连续终端窗 */
+    padding: 1.1rem 2.9rem 1.1rem 1.3rem; font-family: var(--mono);
+    font-size: 0.86rem; line-height: 1.7; overflow-x: auto;
+    white-space: nowrap; /* 命令保持单行，超长横向滚动 */
+  }
+  .copy-btn {
+    position: absolute; top: 2.55rem; right: 0.55rem; /* 避开 term-bar */
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 8px; border: none; cursor: pointer;
+    color: hsl(var(--card) / 0.75); background: hsl(var(--card) / 0.10);
+    font-size: 13px; transition: background 0.15s, color 0.15s;
+  }
+  .copy-btn:hover { background: hsl(var(--card) / 0.2); color: hsl(var(--card)); }
+  .code-window .cmt { color: hsl(var(--muted-foreground)); }
+  .code-window .dollar { color: hsl(var(--primary)); font-weight: 600; }
+
+  /* ── 特性网格 ── */
+  .grid { display: grid; gap: 1.25rem; grid-template-columns: minmax(0, 1fr); }
+  .grid > * { min-width: 0; }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .feature {
+    padding: 1.5rem; border-radius: var(--radius);
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  .feature:hover { transform: translateY(-4px); box-shadow: 0 16px 40px -16px hsl(var(--shadow-soft)); }
+  .feature .ic {
+    width: 42px; height: 42px; border-radius: 12px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: hsl(var(--primary) / 0.16); color: hsl(var(--primary-foreground));
+    margin-bottom: 0.9rem;
+  }
+  .feature h3 { margin: 0 0 0.4rem; font-size: 1.1rem; font-weight: 600; }
+  .feature p { margin: 0; font-size: 0.92rem; color: hsl(var(--muted-foreground)); }
+
+  section h2 { font-size: clamp(1.8rem, 4vw, 2.4rem); font-weight: 800; letter-spacing: -0.02em; margin: 0 0 0.5rem; }
+  section .section-lede { font-size: 1.05rem; max-width: 640px; margin: 0 0 2.5rem; }
+
+  /* 协议 pill */
+  .protocols { display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: center; }
+  .protocol {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.55rem 1.1rem; border-radius: 9999px; font-weight: 600; font-size: 0.92rem;
+    border: 1px solid hsl(var(--border)); background: hsl(var(--card));
+    box-shadow: 0 4px 16px -6px hsl(var(--shadow-soft));
+  }
+  .protocol .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* 步骤 */
+  .steps { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); counter-reset: step; }
+  .step { position: relative; padding: 1.4rem 1.3rem; }
+  .step::before {
+    counter-increment: step; content: counter(step);
+    font-weight: 800; font-size: 1.3rem;
+    width: 40px; height: 40px; border-radius: 12px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: hsl(var(--primary) / 0.14); color: hsl(var(--primary-foreground));
+    margin-bottom: 0.9rem;
+  }
+  .step h4 { margin: 0 0 0.2rem; font-size: 1rem; }
+  .step p { margin: 0; font-size: 0.87rem; color: hsl(var(--muted-foreground)); }
+
+  /* 数据对比卡 */
+  .stat { text-align: center; padding: 1.5rem 1rem; }
+  .stat .num { font-size: 2rem; font-weight: 800; letter-spacing: -0.02em; }
+  .stat .lbl { font-size: 0.85rem; color: hsl(var(--muted-foreground)); }
+
+  footer { border-top: 1px solid hsl(var(--border)); padding: 2.5rem 0; font-size: 0.9rem; }
+  .footer-inner { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  /* ICP 备案链接 */
+  .gov { color: hsl(var(--muted-foreground)); font-size: 0.82rem; opacity: 0.85; transition: opacity 0.15s, color 0.15s; }
+  .gov:hover { color: hsl(var(--primary)); opacity: 1; }
+
+  @media (max-width: 860px) {
+    .nav a:not(:first-child) { display: none; }
+    .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 560px) {
+    .grid-3, .grid-4, .grid-2 { grid-template-columns: 1fr; }
+    .hero-actions .btn { width: 100%; }
+  }
+
+  /* 进入动画 */
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+  .reveal { animation: fadeInUp 0.6s ease both; }
+  .float { animation: floaty 6s ease-in-out infinite; }
+</style>
+</head>
+
+<body>
+  <!-- 全局可复用 logo 渐变（集中定义，避免重复 id） -->
+  <svg aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a78bfa"/><stop offset="0.5" stop-color="#f9a8d4"/><stop offset="1" stop-color="#7dd3fc"/></linearGradient></defs></svg>
+
+  <!-- 顶栏 -->
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a class="brand" href="#top" aria-label="LLMux">
+        <i class="logo-mark" style="width:30px;height:30px;border-radius:9px;margin:0"><svg viewBox="0 0 32 32" width="30" height="30"><rect width="32" height="32" rx="8" fill="url(#lg)"/><path d="M18 5 L9 18 h6 l-1 9 L23 14 h-6 z" fill="#fff" opacity="0.95"/></svg></i>
+        <span>LLMux</span>
+      </a>
+      <nav class="nav">
+        <a href="#features">功能</a>
+        <a href="#protocols">多协议</a>
+        <a href="#install">安装</a>
+        <a href="#steps">使用</a>
+      </nav>
+      <div class="top-controls">
+        <div class="theme-dots" id="palette" role="group" aria-label="色板">
+          <button class="theme-dot" data-palette="lavender" style="background:#a78bfa" title="lavender"></button>
+          <button class="theme-dot" data-palette="mint" style="background:#6ee7b7" title="mint"></button>
+          <button class="theme-dot" data-palette="peach" style="background:#fda4af" title="peach"></button>
+          <button class="theme-dot" data-palette="ocean" style="background:#7dd3fc" title="ocean"></button>
+          <button class="theme-dot" data-palette="rose" style="background:#f9a8d4" title="rose"></button>
+          <button class="theme-dot" data-palette="azure" style="background:#3b82f6" title="azure"></button>
+        </div>
+        <button class="iconbtn" id="theme-toggle" aria-label="切换明暗" title="明暗">
+          <span id="theme-icon"><i class="fa-solid fa-moon"></i></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero" id="top">
+    <div class="container">
+      <div class="reveal">
+        <span class="logo-mark"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="url(#lg)"/><path d="M18 5 L9 18 h6 l-1 9 L23 14 h-6 z" fill="#fff" opacity="0.95"/></svg></span>
+        <h1><span id="type-title"></span><span class="cursor"></span></h1>
+        <p class="lede muted">LLMux 是给开发者用的<b>个人本地 AI API 网关</b>。把主流 AI 模型统一到 <code>localhost:25975</code>——路由、协议透传、黏性故障切换、密钥隔离，都由 LLMux 来处理。</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary btn-lg" href="#install">开始安装 →</a>
+          <a class="btn btn-outline btn-lg" href="https://github.com/zhMoody/llmux-cli-rs" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> 去 GitHub</a>
+        </div>
+        <div class="hero-badges">
+          <span class="chip"><i class="fa-solid fa-rocket"></i> 基于 Rust + axum</span>
+          <span class="chip"><i class="fa-solid fa-shield-halved"></i> 本地运行</span>
+          <span class="chip"><i class="fa-solid fa-bolt"></i> 嵌入式 SQLite</span>
+          <span class="chip"><i class="fa-solid fa-terminal"></i> 内置终端 TUI</span>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- 特性 -->
+  <section id="features">
+    <div class="container">
+      <h2>为什么需要 LLMux？</h2>
+      <p class="section-lede muted">同时持有多个平台账号？每个平台一套 SDK、一套限速、一段切换流程？LLMux 把这一切收敛为一个唯一入口——你的工具只管和对的入口对话。</p>
+      <div class="grid grid-3">
+        <div class="feature card">
+          <span class="ic"><i class="fa-solid fa-plug"></i></span><h3>统一入口</h3>
+          <p>兼容 OpenAI 格式的客户端指向 <code>/v1</code>，即可访问已启用配置的 provider 与模型。</p>
+        </div>
+        <div class="feature card">
+          <span class="ic"><i class="fa-solid fa-shuffle"></i></span><h3>多协议透传</h3>
+          <p>原生支持主流协议，Claude Code、Codex 等常用 CLI 可直接接入，客户端零改动。</p>
+        </div>
+        <div class="feature card">
+          <span class="ic"><i class="fa-solid fa-brain"></i></span><h3>黏性会话 + 智能故障切换</h3>
+          <p>请求固定用首选账户，保持 prompt cache 热度。账户故障时自动切换备用账户，指数退避探测，恢复后切回，尽量不中断请求。</p>
+        </div>
+        <div class="feature card">
+          <span class="ic"><i class="fa-solid fa-tag"></i></span><h3>模型别名</h3>
+          <p>把 <code>claude-3-7-sonnet-20250219</code> 映射为 <code>c37</code>。随时换底层模型，客户端配置零变动。</p>
+        </div>
+        <div class="feature card">
+          <span class="ic"><i class="fa-solid fa-key"></i></span><h3>API Key 权限隔离</h3>
+          <p>生成网关密钥，为每个密钥配模型白名单。安全分发给团队成员，不暴露真实 provider 凭证。</p>
+        </div>
+        <div class="feature card">
+          <span class="ic"><i class="fa-solid fa-gears"></i></span><h3>一键工具配置</h3>
+          <p>内置 Claude Code、Codex 等常用 CLI 快捷向导。选密钥选模型，点应用即写入配置，含 diff 预览与备份历史。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 多协议 -->
+  <section id="protocols" class="macaron" style="border-radius:0">
+    <div class="container" style="text-align:center">
+      <h2>统一入口，接入主流模型</h2>
+      <p class="section-lede muted" style="margin-left:auto;margin-right:auto">兼容 OpenAI、Anthropic 等主流协议，以及 OpenAI 兼容自定义端点，路由统一处理。</p>
+      <div class="protocols">
+        <span class="protocol"><span class="dot" style="background:#10a37f"></span>OpenAI</span>
+        <span class="protocol"><span class="dot" style="background:#d97757"></span>Anthropic</span>
+        <span class="protocol"><span class="dot" style="background:hsl(var(--primary))"></span>OpenAI 兼容 · Ollama / DeepSeek / 本地推理</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 数字 / 性能 -->
+  <section>
+    <div class="container">
+      <div class="grid grid-2">
+        <div class="stat card"><div class="num">17</div><div class="lbl">内置厂商种子</div></div>
+        <div class="stat card"><div class="num">本地</div><div class="lbl">运行 · 密钥本机加密</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 安装 -->
+  <section id="install">
+    <div class="container">
+      <h2>快速安装</h2>
+      <p class="section-lede muted">选平台，一行命令安装；或从源码构建。装完启动即用。</p>
+      <div class="grid">
+        <div>
+          <h3 style="margin-bottom:0.5rem;font-weight:600">macOS / Linux</h3>
+          <div class="code-wrap">
+            <div class="term-bar">
+              <span class="t-dot" style="background:#ff5f57"></span>
+              <span class="t-dot" style="background:#febc2e"></span>
+              <span class="t-dot" style="background:#28c840"></span>
+              <span class="term-title">macOS · 一键安装</span>
+            </div>
+            <div class="code-window"><span class="dollar">$</span> curl -fsSL https://raw.githubusercontent.com/zhMoody/llmux-cli-rs/main/install.sh | bash</div>
+            <button class="copy-btn" title="复制"><i class="fa-solid fa-copy"></i></button>
+          </div>
+        </div>
+        <div>
+          <h3 style="margin-bottom:0.5rem;font-weight:600">Windows（PowerShell 5.1+）</h3>
+          <div class="code-wrap">
+            <div class="term-bar">
+              <span class="t-dot" style="background:#ff5f57"></span>
+              <span class="t-dot" style="background:#febc2e"></span>
+              <span class="t-dot" style="background:#28c840"></span>
+              <span class="term-title">Windows · 一键安装</span>
+            </div>
+            <div class="code-window"><span class="dollar">PS&gt;</span> powershell -c "iwr -UseBasicParsing https://raw.githubusercontent.com/zhMoody/llmux-cli-rs/main/install.ps1 -OutFile $env:TEMP\llmux-install.ps1; &amp; $env:TEMP\llmux-install.ps1"</div>
+            <button class="copy-btn" title="复制"><i class="fa-solid fa-copy"></i></button>
+          </div>
+        </div>
+        <div>
+          <h3 style="margin-bottom:0.5rem;font-weight:600">从源码构建</h3>
+          <div class="code-wrap">
+            <div class="term-bar">
+              <span class="t-dot" style="background:#ff5f57"></span>
+              <span class="t-dot" style="background:#febc2e"></span>
+              <span class="t-dot" style="background:#28c840"></span>
+              <span class="term-title">从源码构建</span>
+            </div>
+            <div class="code-window">
+              <span class="cmt"># 需 Rust / Bun / Git</span><br>
+              <span class="dollar">$</span> git clone https://github.com/zhMoody/llmux-cli-rs.git &amp;&amp; cd llmux-cli<br>
+              <span class="dollar">$</span> cd ui &amp;&amp; bun install &amp;&amp; bun run build &amp;&amp; cd ..<br>
+              <span class="dollar">$</span> cargo build --release -p llmux<br>
+              <span class="dollar">$</span> ./target/release/llmux   <span class="cmt"># 管理后台 http://localhost:25975</span>
+            </div>
+            <button class="copy-btn" title="复制"><i class="fa-solid fa-copy"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 使用 5 步 -->
+  <section id="steps" class="macaron" style="border-radius:0">
+    <div class="container">
+      <h2>五步接入</h2>
+      <p class="section-lede muted">添加账号 → 建模型 → 发密钥 → 一键接入 → 完成。</p>
+      <div class="steps">
+        <div class="step card"><h4>Accounts</h4><p>添加 API Key，支持 OpenAI / Anthropic / Gemini 与自定义端点。</p></div>
+        <div class="step card"><h4>Models</h4><p>创建模型别名，运行连接测试。</p></div>
+        <div class="step card"><h4>Keys</h4><p>生成网关 Key，配置模型白名单。</p></div>
+        <div class="step card"><h4>Setup</h4><p>一键配置 Claude Code、Codex 等常用 CLI。</p></div>
+        <div class="step card"><h4>完成</h4><p>路由、故障切换、负载均衡全自动。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section>
+    <div class="container">
+      <div class="feature card macaron" style="padding:3rem 2rem;text-align:center">
+        <h2 style="margin-bottom:0.73rem">搭建你的本地 AI 网关</h2>
+        <p class="section-lede muted" style="margin:0 auto">网关与密钥存放在本机；模型请求经 LLMux 代理转发到厂商接口。</p>
+        <div class="hero-actions" style="justify-content:center;margin-top:1.8rem">
+          <a class="btn btn-primary btn-lg" href="#install">开始使用</a>
+          <a class="btn btn-outline btn-lg" href="https://github.com/zhMoody/llmux-cli-rs" target="_blank" rel="noopener">GitHub ↗</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container footer-inner">
+      <span class="brand"><svg viewBox="0 0 32 32" width="22" height="22"><rect width="32" height="32" rx="8" fill="url(#lg)"/><path d="M18 5 L9 18 h6 l-1 9 L23 14 h-6 z" fill="#fff" opacity="0.95"/></svg> LLMux</span>
+      <span class="muted">个人本地 AI 网关 · © 2026 Moody · AGPL-3.0</span>
+    </div>
+    <div class="container" style="text-align:center">
+      <a class="gov" target="_blank" rel="noopener" href="https://beian.mps.gov.cn/#/query/webSearch">豫ICP备2026038260号</a>
+    </div>
+  </footer>
+
+  <!-- 主题逻辑：色板 data-theme + 明暗 .dark（与 app 一致，存 localStorage） -->
+  <!-- jQuery（单文件仍靠 CDN；国内访问用 bootcdn） -->
+  <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+  <script>
+    $(function () {
+      var SCHEME_KEY = "llmux-theme";
+      var PALETTE_KEY = "llmux-palette";
+      var PALETTES = ["lavender", "mint", "peach", "ocean", "azure", "rose"];
+
+      // 第一次应用不播过渡，之后切换才整页交叉淡化（与 app 的 firstApply 一致）
+      var firstApply = true;
+      function apply(resolved, palette) {
+        function now() {
+          document.documentElement.dataset.theme = palette;
+          document.documentElement.classList.toggle("dark", resolved === "dark");
+        }
+        if (typeof document.startViewTransition === "function" && !firstApply) {
+          document.startViewTransition(now);
+        } else {
+          now();
+        }
+        firstApply = false;
+      }
+
+      function getSystem() {
+        return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+
+      var scheme = localStorage.getItem(SCHEME_KEY) || "system";
+      if ($.inArray(scheme, ["light", "dark", "system"]) < 0) scheme = "system";
+      var palette = localStorage.getItem(PALETTE_KEY);
+      if ($.inArray(palette, PALETTES) < 0) palette = "lavender";
+
+      var resolved = scheme === "system" ? getSystem() : scheme;
+      apply(resolved, palette);
+
+      function updateIcon(s) {
+        $("#theme-icon").html('<i class="fa-solid fa-' + (s === "dark" ? "sun" : "moon") + '"></i>');
+      }
+      updateIcon(resolved);
+
+      // 标记当前色板
+      $('.theme-dot[data-palette="' + palette + '"]').addClass("active");
+
+      // 手动明暗切换（锁定到具体明暗）
+      $("#theme-toggle").on("click", function () {
+        var next = document.documentElement.classList.contains("dark") ? "light" : "dark";
+        localStorage.setItem(SCHEME_KEY, next);
+        apply(next, palette);
+        updateIcon(next);
+      });
+
+      // 色板切换（保持当前实际明暗）
+      $(".theme-dot").on("click", function () {
+        palette = $(this).attr("data-palette");
+        localStorage.setItem(PALETTE_KEY, palette);
+        var r = document.documentElement.classList.contains("dark") ? "dark" : "light";
+        apply(r, palette);
+        $(".theme-dot").removeClass("active");
+        $(this).addClass("active");
+      });
+
+      // 系统明暗变化时，若用户仍是 system 则自动跟随
+      window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function (e) {
+        if (localStorage.getItem(SCHEME_KEY) === "system") {
+          apply(e.matches ? "dark" : "light", localStorage.getItem(PALETTE_KEY) || "lavender");
+        }
+      });
+
+      // 代码块复制按钮：只复制命令本体（剥掉 $ / PS> 提示符）
+      $(document).on("click", ".copy-btn", function () {
+        var $btn = $(this);
+        function flash() {
+          $btn.html('<i class="fa-solid fa-check"></i>');
+          setTimeout(function () { $btn.html('<i class="fa-solid fa-copy"></i>'); }, 1500);
+        }
+        var wrap = $btn.closest(".code-wrap")[0];
+        var box = wrap ? wrap.querySelector(".code-window") : null;
+        if (!box) { flash(); return; }
+        var clone = box.cloneNode(true);
+        var b = clone.querySelector(".copy-btn");
+        if (b) b.remove();
+        // <br> 在 textContent 里不产生换行，先替换为换行符再取文本
+        clone.querySelectorAll("br").forEach(function (n) { n.replaceWith("\n"); });
+        var text = clone.textContent.split("\n").map(function (l) {
+          return l.replace(/^\s*(\$|PS>)\s*/, "");
+        }).join("\n").trim();
+
+        // 在用户点击手势内同步 execCommand（file:// 与 https 都最可靠）
+        var ta = document.createElement("textarea");
+        ta.value = text; ta.setAttribute("readonly", "");
+        ta.style.position = "fixed"; ta.style.top = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = false;
+        try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        // execCommand 失败时用异步 clipboard API 兜底
+        if (!ok && navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).catch(function () {});
+        }
+        flash();
+      });
+
+      // 打字机特效：逐字打出大标题，光标闪烁（程序员感）
+      var title = "一个本地入口，接入你的模型";
+      var ti = 0;
+      function typeTitle() {
+        $("#type-title").text(title.slice(0, ti++));
+        if (ti <= title.length) {
+          setTimeout(typeTitle, ti < title.length ? 90 + Math.random() * 70 : 500);
+        }
+      }
+      if ($("#type-title").length) typeTitle();
+    });
+  </script>
+</body>
+</html>

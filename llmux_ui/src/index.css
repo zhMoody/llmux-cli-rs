@@ -301,3 +301,12 @@
     );
   }
 }
+
+/* ── 主题切换整体过渡（View Transitions API） ──────────
+   由 stores/theme.ts 在切换时调用 document.startViewTransition，
+   浏览器对整个页面做整体快照交叉淡化——天然整体、不分层。
+   自定义时长（默认约 0.25s，这里放宽到 0.35s）。 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.35s;
+}

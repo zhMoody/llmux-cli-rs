@@ -57,10 +57,26 @@ export const useThemeStore = create<ThemeState>((set) => ({
   },
 }));
 
-/** 同步到 <html>：data-theme 选色板 + .dark 选明暗（Tailwind darkMode: class） */
+// 首次调用（页面初始化同步主题）不播过渡，只有用户切换才整体平滑
+let firstApply = true;
+
+/** 同步到 <html>：data-theme 选色板 + .dark 选明暗（Tailwind darkMode: class）。
+ *  支持 View Transitions API 时对整个页面做整体快照交叉淡化（不分层）；
+ *  不支持的浏览器直接切换。 */
 export function applyThemeClass(resolved: "light" | "dark", palette: Palette) {
   const root = document.documentElement;
-  root.dataset.theme = palette;
-  root.classList.toggle("dark", resolved === "dark");
-  root.style.colorScheme = resolved;
+  const apply = () => {
+    root.dataset.theme = palette;
+    root.classList.toggle("dark", resolved === "dark");
+    root.style.colorScheme = resolved;
+  };
+  const doc = document as Document & {
+    startViewTransition?: (callback: () => void) => void;
+  };
+  if (!firstApply && typeof doc.startViewTransition === "function") {
+    doc.startViewTransition(apply);
+  } else {
+    apply();
+  }
+  firstApply = false;
 }

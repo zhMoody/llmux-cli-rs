@@ -424,7 +424,7 @@ export const Dashboard: React.FC = () => {
                   </div>
                     {log.account_name && <div className="mt-1 text-muted-foreground/60">{log.account_name}</div>}
                     {log.success !== 1 && log.error_message && (
-                      <div className="mt-2 rounded-lg border border-destructive/20 bg-destructive/10 p-2 leading-relaxed text-destructive-foreground">
+                      <div className="mt-2 whitespace-pre-wrap break-words rounded-lg border border-destructive/20 bg-destructive/10 p-2 leading-relaxed text-destructive-foreground">
                         {log.error_message}
                       </div>
                     )}
