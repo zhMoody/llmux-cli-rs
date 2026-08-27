@@ -574,7 +574,7 @@ else
     fi
 
     echo "$(select_text "⠋ 构建前端资源..." "⠋ Building web UI...")"
-    if ! (cd "$PROJECT_DIR/ui" && bun install && bun run build); then
+    if ! (cd "$PROJECT_DIR/llmux_ui" && bun install && bun run build); then
         echo "$(select_text "构建失败：前端资源构建失败。" "Build Error: Failed to build the UI assets.")" >&2
         exit 1
     fi
@@ -611,13 +611,10 @@ if command -v llmux >/dev/null 2>&1; then
 else
         echo "$(select_text "当前终端还找不到 llmux，可能需要刷新 shell 缓存或设置 PATH。" "Your shell cannot find llmux yet. You may need to refresh shell cache or set PATH.")"
     echo "$(select_text "可以先临时执行：" "You can run this temporarily:")"
-    echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+    echo "  export PATH=\"$TARGET_DIR:\$PATH\""
         echo "  hash -r"
     echo ""
 fi
 
 maybe_help_setup_path
-9
 echo ""
-echo "$(select_text "启动后会打开本地网关，管理界面通常在：" "After launch, the local gateway is available at:")"
-echo "  http://localhost:25975"
