@@ -40,7 +40,7 @@ jobs:
 
       - name: Build UI
         run: |
-          cd ui
+          cd llmux_ui
           bun install
           bun run build
 
