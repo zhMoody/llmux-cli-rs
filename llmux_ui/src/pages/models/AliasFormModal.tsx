@@ -50,26 +50,36 @@ export const AliasFormModal: React.FC<Props> = ({
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [preferredId, setPreferredId] = useState("");
 
-  // 根据目标模型算出匹配的启用账户 id（智能预填用）。
-  // 自定义别名目标模型可能不在已知模型列表，只有别名上存的 vendor_id 才是权威依据，
-  // 因此并入 editing.vendor_id 与已绑定账户的厂商，避免编辑自定义别名时自己的账户"消失"。
-  const idsForTarget = useCallback(
-    (tgt: string): number[] => {
-      if (!tgt) return [];
-      const vendors = new Set<string>();
-      for (const m of models) if (m.id === tgt && m.owned_by) vendors.add(m.owned_by);
-      if (editing?.vendor_id) vendors.add(editing.vendor_id);
-      for (const a of editing?.accounts ?? []) if (a.vendor_id) vendors.add(a.vendor_id);
-      return accounts
-        .filter(
-          (a) =>
-            (vendors.has(a.vendor_id) && a.enabled) ||
-            (a.id != null && (editing?.accounts?.some((ba) => ba.id === a.id) ?? false)),
-        )
-        .map((a) => a.id)
-        .filter((id): id is number => id != null);
+  // ── 共享 vendor/账号解析（发现 1/2/5/6/7/8/9 的统一出口） ──
+  // 解析当前目标模型归属的厂商：
+  // - 编辑态且目标模型未变更时，优先保留用户原设置的自定义 vendor（发现 2/8）
+  //   —— 否则目录模型 owned_by 会覆盖自定义路由（如目标恰为已知模型时）
+  // - 其余情况跟随目录模型 owned_by；owned_by 为空串或目标不在已知目录时回退
+  //   editing.vendor_id（发现 8：空串也不能让兜底失效）
+  const resolvedVendor = useCallback(
+    (tgt: string): string | undefined => {
+      const model = models.find((m) => m.id === tgt);
+      if (editing && tgt === editing.target_model && editing.vendor_id) {
+        return editing.vendor_id;
+      }
+      return model?.owned_by || editing?.vendor_id || undefined;
     },
-    [models, accounts, editing],
+    [models, editing],
+  );
+
+  // 可勾选/预填的账号对象：仅「归属当前 vendor 且启用」的账号，一次算出（发现 1/5/6/7）
+  // 不无条件并入已绑定账号，避免把禁用/异厂商账号重新选中污染提交。
+  const accountsForTarget = useCallback(
+    (tgt: string): Array<AccountPublic & { id: number }> => {
+      if (!tgt) return [];
+      const vendor = resolvedVendor(tgt);
+      if (!vendor) return [];
+      return accounts.filter(
+        (a): a is AccountPublic & { id: number } =>
+          a.id != null && a.enabled === 1 && a.vendor_id === vendor,
+      );
+    },
+    [accounts, resolvedVendor],
   );
 
   useEffect(() => {
@@ -77,16 +87,21 @@ export const AliasFormModal: React.FC<Props> = ({
       const initTarget = editing ? editing.target_model : (initialTarget ?? "");
       setAlias(editing ? editing.alias : "");
       setTarget(initTarget);
-      setSelectedIds(editing ? editing.accounts.map((a) => a.id) : idsForTarget(initTarget));
-      setPreferredId(editing?.preferred_account_id ? String(editing.preferred_account_id) : "");
+      // 预填/初始化以「当前 vendor 且启用」的账号为准，不并入已绑定的禁用/异厂商账号（发现 1）
+      const initAccounts = accountsForTarget(initTarget);
+      setSelectedIds(initAccounts.map((a) => a.id));
+      // 仅当 preferred 仍属于当前可选集合时才保留，避免提交已不存在的陈旧首选（发现 9）
+      const preferredRaw = editing?.preferred_account_id;
+      setPreferredId(
+        preferredRaw != null && initAccounts.some((a) => a.id === preferredRaw)
+          ? String(preferredRaw)
+          : "",
+      );
     }
-  }, [open, editing, initialTarget, models, accounts, idsForTarget]);
+  }, [open, editing, initialTarget, models, accounts, accountsForTarget]);
 
-  // 可选账户 = idsForTarget 命中的账户（与预填一致，含别名已绑定账户）
-  const matchingAccounts = useMemo(() => {
-    const ids = new Set(idsForTarget(target));
-    return accounts.filter((a) => a.id != null && ids.has(a.id!));
-  }, [accounts, idsForTarget, target]);
+  // 当前目标模型匹配的可用账户（发现 5：不再对同一 accounts 数组重复过滤）
+  const matchingAccounts = useMemo(() => accountsForTarget(target), [accountsForTarget, target]);
   const grouped = matchingAccounts.reduce<Record<string, AccountPublic[]>>((acc, a) => {
     (acc[a.vendor_id] ||= []).push(a);
     return acc;
@@ -95,7 +110,7 @@ export const AliasFormModal: React.FC<Props> = ({
   const handleTargetChange = (v: string) => {
     setTarget(v);
     // 智能预填：选目标后自动勾选匹配的启用账户
-    setSelectedIds(idsForTarget(v));
+    setSelectedIds(accountsForTarget(v).map((a) => a.id));
     setPreferredId("");
   };
 
@@ -110,8 +125,8 @@ export const AliasFormModal: React.FC<Props> = ({
     onSubmit({
       alias: alias.trim(),
       target_model: target.trim(),
-      // 目标模型所属厂商；编辑自定义别名时以其存储的 vendor_id 兜底，避免覆盖成 NULL
-      vendor_id: models.find((m) => m.id === target)?.owned_by ?? editing?.vendor_id ?? undefined,
+      // 目标模型所属厂商：优先保留用户原设置的自定义 vendor（发现 2/8），而非被 owned_by 覆盖
+      vendor_id: resolvedVendor(target),
       account_ids: selectedIds,
       preferred_account_id: preferredId ? Number(preferredId) : undefined,
     });
@@ -151,7 +166,13 @@ export const AliasFormModal: React.FC<Props> = ({
           <Select
             value={target}
             onChange={handleTargetChange}
-            options={models.map((m) => ({ value: m.id, label: `[${m.owned_by}] ${m.id}` }))}
+            options={[
+              // 自定义别名 target 不在已知模型列表时，补充临时 option 以免 Select 空白显示（发现 3）
+              ...(target && !models.some((m) => m.id === target)
+                ? [{ value: target, label: target }]
+                : []),
+              ...models.map((m) => ({ value: m.id, label: `[${m.owned_by}] ${m.id}` })),
+            ]}
             placeholder={t("aliases.form.selectTarget")}
           />
         </div>
@@ -171,9 +192,7 @@ export const AliasFormModal: React.FC<Props> = ({
                   <button
                     type="button"
                     className="text-primary hover:underline"
-                    onClick={() =>
-                      setSelectedIds(matchingAccounts.map((a) => a.id).filter((id): id is number => id != null))
-                    }
+                    onClick={() => setSelectedIds(matchingAccounts.map((a) => a.id))}
                   >
                     {t("aliases.form.selectAll")}
                   </button>

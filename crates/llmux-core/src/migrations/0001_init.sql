@@ -144,4 +144,5 @@ INSERT OR IGNORE INTO vendors (id, name, protocol, protocols, openai_responses, 
 ('xai_grok',   'xAI Grok',           'openai',    '["openai","anthropic"]',        0, 'https://api.x.ai/v1',                                    'https://api.x.ai/v1',                   0, NULL, NULL, 1),
 ('openrouter', 'OpenRouter',         'openai',    '["openai","anthropic"]',        0, 'https://openrouter.ai/api/v1',                           'https://openrouter.ai/api',             0, NULL, NULL, 1),
 ('longcat',    'Longcat',            'openai',    '["openai","anthropic"]',        0, 'https://api.longcat.chat/openai/v1',                     'https://api.longcat.chat/anthropic',    0, NULL, NULL, 1),
-('nvidia',     'NVIDIA NIM',         'openai',    '["openai","anthropic"]',        0, 'https://integrate.api.nvidia.com/v1',                    'https://integrate.api.nvidia.com',      0, NULL, NULL, 1);
+('nvidia',     'NVIDIA NIM',         'openai',    '["openai","anthropic"]',        0, 'https://integrate.api.nvidia.com/v1',                    'https://integrate.api.nvidia.com',      0, NULL, NULL, 1),
+('orcaRouter', 'Orca Router',        'openai',    '["openai","anthropic"]',        1, 'https://api.orcarouter.ai/v1',                           'https://api.orcarouter.ai/v1',          0, NULL, NULL, 1);

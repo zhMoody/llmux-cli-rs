@@ -212,6 +212,13 @@ export const ModelBrowser: React.FC = () => {
   const handleAliasSubmit = async (payload: AliasPayload) => {
     setSaving(true);
     try {
+      // 发现 4：新建/改名前置校验目标名是否已被「其他」alias 占用，
+      // 否则 upsert(ON CONFLICT(alias) DO UPDATE) 会静默覆盖同名别名的目标/厂商/账号
+      const isNameTaken = aliases.some((a) => a.alias === payload.alias && a.id !== editing?.id);
+      if (isNameTaken) {
+        toast.error(t("aliases.aliasTaken", { alias: payload.alias }));
+        return;
+      }
       // 编辑且改了别名名 → 先建新名成功后再删旧记录（避免 create 失败丢原别名）
       if (editing && payload.alias !== editing.alias) {
         await modelApi.createAlias(payload);
@@ -233,6 +240,13 @@ export const ModelBrowser: React.FC = () => {
   const handleCustomSubmit = async (payload: AliasPayload) => {
     setSaving(true);
     try {
+      // 同源风险：自定义别名也走 createAlias（ON CONFLICT(alias) DO UPDATE），
+      // 前置校验目标名是否已被占用，避免静默覆盖同名别名的目标/厂商/账号
+      const isNameTaken = aliases.some((a) => a.alias === payload.alias);
+      if (isNameTaken) {
+        toast.error(t("aliases.aliasTaken", { alias: payload.alias }));
+        return;
+      }
       await modelApi.createAlias(payload);
       toast.success(t("aliases.created"));
       setCustomOpen(false);

@@ -328,6 +328,7 @@ export const en: Dict = {
   "aliases.deleted": "Alias deleted",
   "aliases.deleteFailed": "Delete failed",
   "aliases.updated": "Alias updated",
+  "aliases.aliasTaken": 'Alias "{alias}" already exists',
   "aliases.custom": "Custom Alias",
   "aliases.preferred": "preferred",
   "aliases.prefixFallback": "prefix fallback",

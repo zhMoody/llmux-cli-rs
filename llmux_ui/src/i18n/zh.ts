@@ -328,6 +328,7 @@ export const zh: Dict = {
   "aliases.deleted": "别名已删除",
   "aliases.deleteFailed": "删除失败",
   "aliases.updated": "别名已更新",
+  "aliases.aliasTaken": '别名「{alias}」已存在',
   "aliases.custom": "自定义别名",
   "aliases.preferred": "首选",
   "aliases.prefixFallback": "按前缀路由",
