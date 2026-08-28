@@ -472,6 +472,14 @@ export const ModelBrowser: React.FC = () => {
           setLinkTarget("");
         }}
         onSubmit={handleAliasSubmit}
+        onDelete={() => {
+          // 编辑弹窗内删除：关弹窗并复用现有删除确认流程
+          if (!editing) return;
+          setDeleteTarget(editing);
+          setFormOpen(false);
+          setEditing(null);
+          setLinkTarget("");
+        }}
       />
       <CustomAliasModal
         open={customOpen}

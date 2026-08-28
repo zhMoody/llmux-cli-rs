@@ -16,7 +16,7 @@ mod tui;
 
 #[derive(Debug, Parser)]
 #[command(name = "llmux")]
-#[command(about = "Local AI API gateway and multiplexer")]
+#[command(version, about = "Local AI API gateway and multiplexer")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,

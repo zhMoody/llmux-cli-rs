@@ -1,5 +1,5 @@
 // 新增/编辑别名：选目标模型 → 智能匹配厂商账户 → 分组勾选 + 首选
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import type { AvailableModel, AliasResponse } from "@/types/model";
 import type { AccountPublic } from "@/types/account";
 import { Modal } from "@/components/ui/Modal";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { useT } from "@/i18n";
+import { Trash2 } from "lucide-react";
 
 export interface AliasPayload {
   alias: string;
@@ -26,6 +27,8 @@ interface Props {
   onSubmit: (payload: AliasPayload) => void;
   /** 预填的目标模型（快速关联场景） */
   initialTarget?: string;
+  /** 编辑态时删除当前别名（走外部确认流程） */
+  onDelete?: () => void;
 }
 
 const labelCls = "mb-1 block text-sm font-medium text-card-foreground";
@@ -39,6 +42,7 @@ export const AliasFormModal: React.FC<Props> = ({
   onClose,
   onSubmit,
   initialTarget,
+  onDelete,
 }) => {
   const { t } = useT();
   const [alias, setAlias] = useState("");
@@ -46,19 +50,26 @@ export const AliasFormModal: React.FC<Props> = ({
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [preferredId, setPreferredId] = useState("");
 
-  // 根据目标模型算出匹配的启用账户 id（智能预填用）
+  // 根据目标模型算出匹配的启用账户 id（智能预填用）。
+  // 自定义别名目标模型可能不在已知模型列表，只有别名上存的 vendor_id 才是权威依据，
+  // 因此并入 editing.vendor_id 与已绑定账户的厂商，避免编辑自定义别名时自己的账户"消失"。
   const idsForTarget = useCallback(
-    (tgt: string) =>
-      tgt
-        ? accounts
-            .filter((a) => {
-              const vendors = new Set(models.filter((m) => m.id === tgt).map((m) => m.owned_by));
-              return vendors.has(a.vendor_id) && a.enabled;
-            })
-            .map((a) => a.id)
-            .filter((id): id is number => id != null)
-        : [],
-    [models, accounts],
+    (tgt: string): number[] => {
+      if (!tgt) return [];
+      const vendors = new Set<string>();
+      for (const m of models) if (m.id === tgt && m.owned_by) vendors.add(m.owned_by);
+      if (editing?.vendor_id) vendors.add(editing.vendor_id);
+      for (const a of editing?.accounts ?? []) if (a.vendor_id) vendors.add(a.vendor_id);
+      return accounts
+        .filter(
+          (a) =>
+            (vendors.has(a.vendor_id) && a.enabled) ||
+            (a.id != null && (editing?.accounts?.some((ba) => ba.id === a.id) ?? false)),
+        )
+        .map((a) => a.id)
+        .filter((id): id is number => id != null);
+    },
+    [models, accounts, editing],
   );
 
   useEffect(() => {
@@ -71,11 +82,11 @@ export const AliasFormModal: React.FC<Props> = ({
     }
   }, [open, editing, initialTarget, models, accounts, idsForTarget]);
 
-  // 目标模型匹配的厂商 → 这些厂商下的启用账户
-  const matchingVendors = target
-    ? [...new Set(models.filter((m) => m.id === target).map((m) => m.owned_by))]
-    : [];
-  const matchingAccounts = accounts.filter((a) => matchingVendors.includes(a.vendor_id) && a.enabled);
+  // 可选账户 = idsForTarget 命中的账户（与预填一致，含别名已绑定账户）
+  const matchingAccounts = useMemo(() => {
+    const ids = new Set(idsForTarget(target));
+    return accounts.filter((a) => a.id != null && ids.has(a.id!));
+  }, [accounts, idsForTarget, target]);
   const grouped = matchingAccounts.reduce<Record<string, AccountPublic[]>>((acc, a) => {
     (acc[a.vendor_id] ||= []).push(a);
     return acc;
@@ -99,8 +110,8 @@ export const AliasFormModal: React.FC<Props> = ({
     onSubmit({
       alias: alias.trim(),
       target_model: target.trim(),
-      // 目标模型所属厂商（别名可能聚合多模型，仍以目标模型为准）
-      vendor_id: models.find((m) => m.id === target)?.owned_by,
+      // 目标模型所属厂商；编辑自定义别名时以其存储的 vendor_id 兜底，避免覆盖成 NULL
+      vendor_id: models.find((m) => m.id === target)?.owned_by ?? editing?.vendor_id ?? undefined,
       account_ids: selectedIds,
       preferred_account_id: preferredId ? Number(preferredId) : undefined,
     });
@@ -114,6 +125,12 @@ export const AliasFormModal: React.FC<Props> = ({
       size="lg"
       footer={
         <>
+          {editing && onDelete && (
+            <Button variant="danger" size="sm" className="mr-auto" onClick={onDelete}>
+              <Trash2 className="h-4 w-4" />
+              {t("aliases.form.deleteAlias")}
+            </Button>
+          )}
           <Button variant="secondary" onClick={onClose}>
             {t("common.cancel")}
           </Button>

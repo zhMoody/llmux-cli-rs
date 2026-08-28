@@ -333,6 +333,7 @@ export const en: Dict = {
   "aliases.prefixFallback": "prefix fallback",
   "aliases.form.createTitle": "Create Alias",
   "aliases.form.editTitle": "Edit Alias",
+  "aliases.form.deleteAlias": "Delete Alias",
   "aliases.form.selectTarget": "Select target model",
   "aliases.form.bindAccounts": "Bind accounts",
   "aliases.form.bindHint": "Available accounts appear once a target is chosen",

@@ -333,6 +333,7 @@ export const zh: Dict = {
   "aliases.prefixFallback": "按前缀路由",
   "aliases.form.createTitle": "新增别名",
   "aliases.form.editTitle": "编辑别名",
+  "aliases.form.deleteAlias": "删除该别名",
   "aliases.form.selectTarget": "选择目标模型",
   "aliases.form.bindAccounts": "绑定账户",
   "aliases.form.bindHint": "选择目标模型后自动列出可用账户",
