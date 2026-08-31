@@ -41,6 +41,8 @@ export interface AliasCreatePayload {
   vendor_id?: string;
   account_ids?: number[] | string;
   preferred_account_id?: number;
+  /** 编辑态携带 id：后端用它区分「同名更新自身」与「创建同名冲突」（返回 409） */
+  id?: number;
 }
 
 export interface ModelTestPayload {

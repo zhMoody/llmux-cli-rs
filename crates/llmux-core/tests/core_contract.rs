@@ -95,6 +95,7 @@ async fn init_db_creates_fresh_schema_and_seed_vendors() {
             "nvidia",
             "openai",
             "openrouter",
+            "orcaRouter",
             "siliconflow",
             "xai_grok",
             "xiaomi_mimo",

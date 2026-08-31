@@ -427,6 +427,14 @@ pub async fn get_alias_name_by_id(pool: &SqlitePool, id: i64) -> Result<Option<S
         .await?)
 }
 
+/// 按 alias 名读取 id（createAlias 同名冲突检测用：区分「同名更新自身」与「被其他别名占用」）。
+pub async fn get_alias_id_by_name(pool: &SqlitePool, alias: &str) -> Result<Option<i64>> {
+    Ok(sqlx::query_scalar("SELECT id FROM model_aliases WHERE alias = ?")
+        .bind(alias)
+        .fetch_optional(pool)
+        .await?)
+}
+
 /// 写入 alias（按 alias 唯一键 UPSERT），返回真实 id。
 /// 注意：UPSERT 触发 UPDATE 分支时 last_insert_rowid() 不会被 SQLite 更新，
 /// 因此必须用 RETURNING id 取回（否则编辑已有 alias 时绑定会引用错误 id）。

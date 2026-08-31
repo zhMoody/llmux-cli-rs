@@ -15,6 +15,8 @@ export interface AliasPayload {
   vendor_id?: string;
   account_ids?: number[];
   preferred_account_id?: number;
+  /** 编辑态携带 id：后端用它区分「同名更新自身」与「创建同名冲突」（返回 409） */
+  id?: number;
 }
 
 interface Props {
@@ -67,19 +69,31 @@ export const AliasFormModal: React.FC<Props> = ({
     [models, editing],
   );
 
-  // 可勾选/预填的账号对象：仅「归属当前 vendor 且启用」的账号，一次算出（发现 1/5/6/7）
-  // 不无条件并入已绑定账号，避免把禁用/异厂商账号重新选中污染提交。
+  // 可勾选/预填的账号对象：一次算出（发现 1/5/6/7）
+  // 候选池 = 归属当前 vendor 的启用账号（可新绑定）
+  //       ∪ 编辑态下已绑定、但被禁用且仍属当前 vendor 的账号（保留而非静默解除，见数据丢失回归）
+  // 异厂商 / 非启用且未绑定的账号仍排除，避免换目标后把旧厂商账号重新选中污染提交（发现 1）。
   const accountsForTarget = useCallback(
     (tgt: string): Array<AccountPublic & { id: number }> => {
       if (!tgt) return [];
       const vendor = resolvedVendor(tgt);
       if (!vendor) return [];
-      return accounts.filter(
+      const enabledPool = accounts.filter(
         (a): a is AccountPublic & { id: number } =>
           a.id != null && a.enabled === 1 && a.vendor_id === vendor,
       );
+      if (!editing) return enabledPool;
+      // 编辑态补充：已绑定的同 vendor 账号（含禁用），并入候选池以保留绑定
+      const boundIds = new Set(
+        editing.accounts.filter((acc) => acc.vendor_id === vendor).map((acc) => acc.id),
+      );
+      const boundDisabledPool = accounts.filter(
+        (a): a is AccountPublic & { id: number } =>
+          a.id != null && a.enabled !== 1 && a.vendor_id === vendor && boundIds.has(a.id),
+      );
+      return [...enabledPool, ...boundDisabledPool];
     },
-    [accounts, resolvedVendor],
+    [accounts, resolvedVendor, editing],
   );
 
   useEffect(() => {
@@ -129,6 +143,7 @@ export const AliasFormModal: React.FC<Props> = ({
       vendor_id: resolvedVendor(target),
       account_ids: selectedIds,
       preferred_account_id: preferredId ? Number(preferredId) : undefined,
+      id: editing?.id,
     });
   };
 
@@ -214,7 +229,12 @@ export const AliasFormModal: React.FC<Props> = ({
                             onChange={() => a.id != null && toggleAccount(a.id!)}
                             className="h-3.5 w-3.5 rounded accent-primary"
                           />
-                          <span className="text-xs text-card-foreground">{a.name}</span>
+                          <span className="text-xs text-card-foreground">
+                            {a.name}
+                            {a.enabled !== 1 && (
+                              <span className="ml-1 text-[10px] text-muted-foreground/60">（已禁用）</span>
+                            )}
+                          </span>
                         </label>
                       ))}
                     </div>

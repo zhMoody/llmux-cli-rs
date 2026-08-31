@@ -259,6 +259,50 @@ async fn account_alias_binding_round_trip_and_cascade() {
 }
 
 #[tokio::test]
+async fn create_alias_with_taken_name_returns_conflict() {
+    let state = llmux_server::test_state().await;
+    let app = llmux_server::app(state);
+
+    // 1. 建 alias，从列表拿到其 id
+    let (status, body) = request_json_shared(
+        &app,
+        Method::POST,
+        "/api/models/aliases",
+        Some(json!({"alias": "dup", "target_model": "gpt-4o", "vendor_id": "openai"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "first create should succeed: {body}");
+    let (_, aliases) = request_json_shared(&app, Method::GET, "/api/models/aliases", None).await;
+    let alias_id = aliases
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["alias"] == "dup")
+        .and_then(|a| a["id"].as_i64())
+        .expect("alias exists");
+
+    // 2. 以「创建」语义再次写同名（不带 id）→ 应 409，禁止静默覆盖
+    let (status, body) = request_json_shared(
+        &app,
+        Method::POST,
+        "/api/models/aliases",
+        Some(json!({"alias": "dup", "target_model": "gpt-4o-mini", "vendor_id": "openai"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "same-name create should conflict: {body}");
+
+    // 3. 编辑同名自身（带相同 id）→ 应 OK，允许更新
+    let (status, body) = request_json_shared(
+        &app,
+        Method::POST,
+        "/api/models/aliases",
+        Some(json!({"alias": "dup", "target_model": "gpt-4o-mini", "vendor_id": "openai", "id": alias_id})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "update self with id should succeed: {body}");
+}
+
+#[tokio::test]
 async fn unknown_api_routes_return_gateway_not_found_error_without_spa_fallback() {
     let (status, body) = request_json(Method::GET, "/api/does-not-exist", None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);

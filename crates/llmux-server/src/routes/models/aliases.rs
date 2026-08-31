@@ -134,6 +134,27 @@ pub async fn set_model_alias(
     let preferred_account_id = body
         .get("preferred_account_id")
         .and_then(|v| v.as_i64());
+    // 编辑态携带的自身 id（可选）：用于区分「同名更新自身」与「创建同名冲突」。
+    let self_id = body.get("id").and_then(Value::as_i64);
+
+    // 同名冲突检测：upsert_alias 按 alias 唯一键 ON CONFLICT(alias) DO UPDATE，永不报冲突，
+    // 若目标 alias 名已被「其他」别名占用会静默覆盖其目标/厂商/绑定。这里下沉到后端，
+    // 仅在「同名且非自身」时返回 409，避免客户端一次性快照失效或并发写入造成的无声覆盖。
+    match repo::get_alias_id_by_name(&state.pool, alias).await {
+        Ok(Some(existing_id)) if Some(existing_id) != self_id => {
+            return crate::error::simple_error(
+                format!("Alias name already taken: {alias}"),
+                StatusCode::CONFLICT,
+            );
+        }
+        Ok(_) => {}
+        Err(e) => {
+            return crate::error::simple_error(
+                format!("Failed to lookup alias: {e}"),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
+        }
+    }
 
     let alias_id = match repo::upsert_alias(&state.pool, alias, target_model, vendor_id).await {
         Ok(id) => id,
