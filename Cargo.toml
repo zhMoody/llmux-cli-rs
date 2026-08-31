@@ -11,6 +11,9 @@ version = "0.4.1"
 edition = "2021"
 license = "AGPL-3.0"
 authors = ["Moody"]
+description = "Local AI API gateway and multiplexer"
+repository = "https://github.com/zhMoody/llmux-cli-rs"
+homepage = "https://github.com/zhMoody/llmux-cli-rs"
 
 [workspace.dependencies]
 anyhow = "1"
@@ -47,3 +50,8 @@ utoipa = { version = "5", features = ["macros"] }
 utoipa-swagger-ui = { version = "8", features = ["axum"] }
 uuid = { version = "1", features = ["v4"] }
 zeroize = "1"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
