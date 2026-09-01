@@ -49,44 +49,40 @@ LLMux 解决的就是这些问题。它是一个运行在本地机器上的网�
 
 ## 安装
 
-选择对应的平台：
+快速安装：选平台，一行命令安装（下载预编译二进制）；或从源码构建。装完启动即用。
 
-### macOS / Linux
+### macOS
 
-一行命令安装（下载预编译二进制）：
+一键安装：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zhMoody/llmux-cli-rs/main/install.sh | bash
+brew install zhmoody/tap/llmux
 ```
 
-或带选项：
+### Linux
+
+一键安装：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zhMoody/llmux-cli-rs/main/install.sh | bash -s -- --mode release --lang zh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/zhMoody/llmux-cli-rs/releases/latest/download/llmux-installer.sh | sh
 ```
 
 ### Windows（PowerShell 5.1+）
 
-一行命令安装（下载预编译二进制）：
+一键安装：
 
 ```powershell
-powershell -c "iwr -UseBasicParsing https://raw.githubusercontent.com/zhMoody/llmux-cli-rs/main/install.ps1 -OutFile $env:TEMP\llmux-install.ps1; & $env:TEMP\llmux-install.ps1"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/zhMoody/llmux-cli-rs/releases/latest/download/llmux-installer.ps1 | iex"
 ```
 
-或带选项：
-
-```powershell
-powershell -c "iwr -UseBasicParsing https://raw.githubusercontent.com/zhMoody/llmux-cli-rs/main/install.ps1 -OutFile $env:TEMP\llmux-install.ps1; & $env:TEMP\llmux-install.ps1 -Mode release -Lang zh"
-```
-
-### 从源码构建（全平台）
+### 从源码构建
 
 需要 [Rust](https://rustup.rs/)、[Bun](https://bun.sh/) 和 Git。
 
 ```bash
 git clone https://github.com/zhMoody/llmux-cli-rs.git
-cd llmux-cli
-cd ui && bun install && bun run build && cd ..
+cd llmux-cli-rs
+cd llmux_ui && bun install && bun run build && cd ..
 cargo build --release -p llmux
 ./target/release/llmux
 ```

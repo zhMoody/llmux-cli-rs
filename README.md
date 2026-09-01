@@ -49,44 +49,40 @@ LLMux solves all of this. It's a local gateway that runs on your machine and exp
 
 ## Installation
 
-Choose your platform:
+Quick install: pick your platform, one-line command (downloads a prebuilt binary); or build from source. Start right after installing.
 
-### macOS / Linux
+### macOS
 
-One-line install (downloads prebuilt binary):
+One-line install:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zhMoody/llmux-cli-rs/main/install.sh | bash
+brew install zhmoody/tap/llmux
 ```
 
-Or with options:
+### Linux
+
+One-line install:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zhMoody/llmux-cli-rs/main/install.sh | bash -s -- --mode release --lang zh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/zhMoody/llmux-cli-rs/releases/latest/download/llmux-installer.sh | sh
 ```
 
 ### Windows (PowerShell 5.1+)
 
-One-line install (downloads prebuilt binary):
+One-line install:
 
 ```powershell
-powershell -c "iwr -UseBasicParsing https://raw.githubusercontent.com/zhMoody/llmux-cli-rs/main/install.ps1 -OutFile $env:TEMP\llmux-install.ps1; & $env:TEMP\llmux-install.ps1"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/zhMoody/llmux-cli-rs/releases/latest/download/llmux-installer.ps1 | iex"
 ```
 
-Or with options:
-
-```powershell
-powershell -c "iwr -UseBasicParsing https://raw.githubusercontent.com/zhMoody/llmux-cli-rs/main/install.ps1 -OutFile $env:TEMP\llmux-install.ps1; & $env:TEMP\llmux-install.ps1 -Mode release -Lang zh"
-```
-
-### From source (any platform)
+### From source
 
 Requires [Rust](https://rustup.rs/), [Bun](https://bun.sh/), and Git.
 
 ```bash
 git clone https://github.com/zhMoody/llmux-cli-rs.git
-cd llmux-cli
-cd ui && bun install && bun run build && cd ..
+cd llmux-cli-rs
+cd llmux_ui && bun install && bun run build && cd ..
 cargo build --release -p llmux
 ./target/release/llmux
 ```
