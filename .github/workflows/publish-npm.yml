@@ -1,7 +1,8 @@
 # 在 GitHub Release 发布后把 npm 包装包推到 npmjs.com。
-# 鉴权走 npm Trusted Publishing（OIDC）：不依赖密码 / API token，因此
-# 账户即使开启「发布需 OTP」的两步验证也不受影响（见 npmjs 的 Trusted
-# Publishing 配置：绑定本仓库 + 本 workflow 文件名）。
+# 鉴权：npm Automation token（个人账号开启「发布需 2FA」时，automation token
+# 是 npm 官方为 CI 自动发布提供的免 OTP 凭证）。
+# 前置：npmjs.com → Access Tokens 新建 Automation 类型 token，存为 GitHub
+# 仓库 secret `NPM_TOKEN`。
 #
 # 两种触发方式：
 # 1. release: published —— 用户/工具手动建 Release 时自动触发；
@@ -22,7 +23,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write # 签发 OIDC 令牌，供 npm publish --provenance 使用
 
 jobs:
   publish:
@@ -51,4 +51,6 @@ jobs:
 
       - name: Publish to npm
         working-directory: npm/llmux
-        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
