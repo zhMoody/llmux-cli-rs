@@ -15,10 +15,10 @@
 npm install -g llmux-cli
 ```
 
-or with a specific version / 指定版本：
+Pin to the latest version explicitly (optional) / 也可显式锁 `latest`（可选）：
 
 ```bash
-npm install -g llmux-cli@0.5.21
+npm install -g llmux-cli@latest
 ```
 
 ## Usage / 使用
