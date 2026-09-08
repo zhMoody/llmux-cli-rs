@@ -1,0 +1,34 @@
+{
+	"name": "llmux-cli",
+	"version": "0.5.21",
+	"description": "Local AI API gateway and multiplexer — 本地优先的 AI API gateway，多协议透传、粘滞会话 failover、模型 alias 映射",
+	"license": "AGPL-3.0",
+	"type": "commonjs",
+	"bin": {
+		"llmux": "bin/cli.js"
+	},
+	"scripts": {
+		"postinstall": "node scripts/install.js"
+	},
+	"files": [
+		"bin",
+		"scripts"
+	],
+	"keywords": [
+		"ai",
+		"gateway",
+		"llm",
+		"proxy",
+		"claude",
+		"codex",
+		"gemini"
+	],
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/zhMoody/llmux-cli-rs.git"
+	},
+	"homepage": "https://github.com/zhMoody/llmux-cli-rs",
+	"engines": {
+		"node": ">=18"
+	}
+}
