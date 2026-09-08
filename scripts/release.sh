@@ -87,6 +87,6 @@ git push origin main
 git push origin "v$NEW"
 
 echo ""
-echo "✅ 已推送 main + tag v$NEW，cargo-dist 正在构建 Release（约 7-10 分钟）"
+echo "✅ 已推送 main + tag v${NEW}，cargo-dist 正在构建 Release（约 7-10 分钟）"
 echo "   查看进度: gh run watch"
-echo "   完成后自动发布：GitHub Release / Homebrew / npm(llmux-cli@$NEW)"
+echo "   完成后自动发布：GitHub Release / Homebrew / npm(llmux-cli@${NEW})"
