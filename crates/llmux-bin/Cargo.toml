@@ -7,6 +7,9 @@ authors.workspace = true
 description.workspace = true
 repository.workspace = true
 homepage.workspace = true
+# 显式指定 npm 包的标准 README（README.md），避免 cargo-dist 用 starts_with 扫描
+# 误选中 README.zh-CN.md（npm 网页只认标准名 README.md）
+readme = "../../README.md"
 
 [[bin]]
 name = "llmux"
