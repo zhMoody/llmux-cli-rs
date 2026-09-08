@@ -51,6 +51,14 @@ LLMux solves all of this. It's a local gateway that runs on your machine and exp
 
 Quick install: pick your platform, one-line command (downloads a prebuilt binary); or build from source. Start right after installing.
 
+### npm (Node.js ≥ 18)
+
+One-line install via npm (downloads the prebuilt binary for your platform):
+
+```bash
+npm install -g llmux-cli
+```
+
 ### macOS
 
 One-line install:
