@@ -34,10 +34,12 @@ jobs:
       PLAN: ${{ inputs.plan }}
     steps:
       # trusted publishing 需要较新的 npm（≥11.5.1，随 Node 22.14+ 提供）
+      # 用 node 24 确保 npm ≥11.5.1：npm 10.x 即使 OIDC 权限正确也会失败
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           registry-url: https://registry.npmjs.org
+          package-manager-cache: false
 
       # 下载 cargo-dist 各 job 上传的 artifacts（含 *-npm-package.tar.gz）
       - name: Fetch dist npm packages
