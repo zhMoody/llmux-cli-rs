@@ -2,11 +2,23 @@
 # 鉴权走 npm Trusted Publishing（OIDC）：不依赖密码 / API token，因此
 # 账户即使开启「发布需 OTP」的两步验证也不受影响（见 npmjs 的 Trusted
 # Publishing 配置：绑定本仓库 + 本 workflow 文件名）。
+#
+# 两种触发方式：
+# 1. release: published —— 用户/工具手动建 Release 时自动触发；
+#    注意：cargo-dist 用 GITHUB_TOKEN 建的 Release 不会触发本 workflow
+#    （GitHub 规则），所以实际发布走方式 2。
+# 2. workflow_dispatch  —— 手动触发：Release 建好后执行
+#    gh workflow run publish-npm.yml -f tag=v0.5.22
 name: Publish Package to npm
 
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "GitHub Release tag（如 v0.5.22），用于对齐 npm 版本"
+        required: true
 
 permissions:
   contents: read
@@ -25,11 +37,17 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # 包装包本身零依赖，无需安装；只需把版本与 Release tag 对齐
+      # （release 事件取 release.tag_name；workflow_dispatch 取手动输入的 tag）
       - name: Sync version with release tag
         working-directory: npm/llmux
         run: |
-          TAG="${{ github.event.release.tag_name }}"
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          if [ -z "$TAG" ]; then
+            echo "错误：未提供 release tag（release 事件或 workflow_dispatch 输入均无）" >&2
+            exit 1
+          fi
           npm pkg set version="${TAG#v}"
+          echo "将发布 llmux-cli@${TAG#v}（对应 GitHub Release $TAG）"
 
       - name: Publish to npm
         working-directory: npm/llmux
