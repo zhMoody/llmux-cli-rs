@@ -22,7 +22,9 @@ on:
         type: string
 
 permissions:
-  contents: read
+  # 只声明 OIDC 所需权限。注意：不能请求 contents——caller job（release.yml 的
+  # custom-publish-npm）的 permissions 只有 id-token/packages，callee 请求超出
+  # caller 提供的权限会被 GitHub 拒绝（contents: read → contents: none）。
   id-token: write # OIDC 令牌，供 npm publish --provenance
 
 jobs:
