@@ -12,7 +12,7 @@ export function formatTimestamp(unixMillis: number): string {
   if (diff < 86_400_000) return t("time.hoursAgo", { n: Math.floor(diff / 3_600_000) });
 
   // 超过一天走绝对时间，locale 跟随当前语言
-  const locale = lang === "zh" ? "zh-CN" : "en-US";
+  const locale = lang === "ja" ? "ja-JP" : lang === "zh" ? "zh-CN" : "en-US";
   return date.toLocaleString(locale, {
     month: "short",
     day: "numeric",

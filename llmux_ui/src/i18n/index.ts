@@ -2,16 +2,20 @@
 import { create } from "zustand";
 import { zh } from "./zh";
 import { en } from "./en";
+import { ja } from "./ja";
 
-export type Lang = "zh" | "en";
+export type Lang = "zh" | "en" | "ja";
 export type Dict = Record<string, string>;
 
 const LANG_KEY = "llmux-lang";
 
 function getInitialLang(): Lang {
   const saved = localStorage.getItem(LANG_KEY);
-  if (saved === "zh" || saved === "en") return saved;
-  return navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
+  if (saved === "zh" || saved === "en" || saved === "ja") return saved;
+  const lang = navigator.language.toLowerCase();
+  if (lang.startsWith("zh")) return "zh";
+  if (lang.startsWith("ja")) return "ja";
+  return "en";
 }
 
 interface I18nState {
@@ -29,7 +33,8 @@ export const useI18n = create<I18nState>((set, get) => ({
     set({ lang });
   },
   t: (key, params) => {
-    const dict: Dict = get().lang === "zh" ? zh : en;
+    const dicts: Record<Lang, Dict> = { zh, en, ja };
+    const dict: Dict = dicts[get().lang] ?? en;
     let text = dict[key] ?? en[key] ?? key;
     if (params) {
       for (const [k, v] of Object.entries(params)) {

@@ -138,7 +138,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           </div>
 
           <div className="flex items-center gap-0.5 rounded-full bg-muted p-0.5">
-            {(["zh", "en"] as const).map((l) => (
+            {(["zh", "en", "ja"] as const).map((l) => (
               <button
                 key={l}
                 onClick={() => setLang(l)}
@@ -155,7 +155,7 @@ export const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                     transition={{ type: "spring", stiffness: 500, damping: 35 }}
                   />
                 )}
-                <span className="relative z-10">{l === "zh" ? "中" : "EN"}</span>
+                <span className="relative z-10">{l === "zh" ? "中" : l === "en" ? "EN" : "日"}</span>
               </button>
             ))}
           </div>
