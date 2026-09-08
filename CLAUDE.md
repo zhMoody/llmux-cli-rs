@@ -85,5 +85,3 @@ Cargo workspace，三个 crate + 一个前端：
 ## 代码约定
 
 遵循仓库/全局规范：注释与沟通用简体中文、专业术语保留英文；禁止 `any`（用 `unknown` + 类型收窄）；复杂逻辑必须写注释；优先编辑已有文件、小步改动；正式文档放 `docs/`（specs/plans），方案讨论放 `discuss/`，日志用 `tracing` 按模块提升日志级别（`llmux=debug`）。
-
-schema 推倒重来需设计评审时，参考 `docs/superpowers/specs/2026-08-05-llmux-db-redesign-design.md` 与 `docs/2026-08-05-db-redesign-implementation.md`。
