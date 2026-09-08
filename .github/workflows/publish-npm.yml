@@ -39,7 +39,6 @@ jobs:
         with:
           node-version: "24"
           registry-url: https://registry.npmjs.org
-          package-manager-cache: false
 
       # 下载 cargo-dist 各 job 上传的 artifacts（含 *-npm-package.tar.gz）
       - name: Fetch dist npm packages
