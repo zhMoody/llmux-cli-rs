@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# 一键发布：bump 版本 → 同步 Cargo.lock / npm 包 → 提交 → 打 tag → 推送。
+# 一键发布：bump 版本 → 同步 Cargo.lock → 提交 → 打 tag → 推送。
 # 版本号只在这里出现一次：
 #   ./scripts/release.sh          # patch 自增（0.5.22 → 0.5.23）
 #   ./scripts/release.sh minor    # minor 自增（0.5.x → 0.6.0）
 #   ./scripts/release.sh major    # major 自增（0.x → 1.0.0）
 #   ./scripts/release.sh 0.6.0    # 显式指定版本
 #
-# 之后（GitHub Release 构建完成后）再手动/脚本触发 npm：
-#   gh workflow run publish-npm.yml -f tag=v<版本>
+# 之后 cargo-dist（release.yml）自动完成：构建 5 平台 → 建 GitHub Release →
+# 推 Homebrew tap → 经 custom-publish-npm（OIDC）发布 npm（llmux-cli）。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -49,6 +49,7 @@ read -r -p "确认发布 v$NEW ? [y/N] " ans
 [[ "$ans" =~ ^[yY]$ ]] || { echo "已取消"; exit 1; }
 
 # ── 2. 可选：npm 线上版本冲突预检（网络失败仅警告）────────────
+# npm 包装包名是 llmux-cli（cargo-dist 的 npm-package 配置），版本必须 > 线上。
 if command -v npm >/dev/null 2>&1; then
     ONLINE="$(npm view llmux-cli version 2>/dev/null || true)"
     if [ -n "$ONLINE" ]; then
@@ -69,17 +70,16 @@ if command -v npm >/dev/null 2>&1; then
     fi
 fi
 
-# ── 3. 同步版本号（全部位置）──────────────────────────────────
+# ── 3. 同步版本号（Cargo.toml + Cargo.lock；npm 版本由 dist 自动跟随）───────
 sed -i '' "s/^version = \"$CUR\"/version = \"$NEW\"/" Cargo.toml
-npm pkg set version="$NEW" --prefix npm/llmux
 # 同步 Cargo.lock（cargo metadata 会按 workspace 重写 lock）
 cargo metadata --no-deps --format-version 1 >/dev/null 2>&1 || {
     echo "⚠️ cargo metadata 失败，Cargo.lock 可能未同步"; }
 
-echo "✓ 版本号已同步: Cargo.toml / Cargo.lock / npm/llmux/package.json"
+echo "✓ 版本号已同步: Cargo.toml / Cargo.lock"
 
 # ── 4. 提交 + 打 tag + 推送 ──────────────────────────────────
-git add Cargo.toml Cargo.lock npm/llmux/package.json
+git add Cargo.toml Cargo.lock
 git commit -m "release: v$NEW"
 git tag "v$NEW"
 git push origin main
@@ -88,6 +88,4 @@ git push origin "v$NEW"
 echo ""
 echo "✅ 已推送 main + tag v$NEW，cargo-dist 正在构建 Release（约 7-10 分钟）"
 echo "   查看进度: gh run watch"
-echo ""
-echo "   等 Release 就绪后触发 npm 发布:"
-echo "   gh workflow run publish-npm.yml -f tag=v$NEW"
+echo "   完成后自动发布：GitHub Release / Homebrew / npm(llmux-cli@$NEW)"

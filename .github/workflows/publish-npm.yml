@@ -1,56 +1,56 @@
-# 在 GitHub Release 发布后把 npm 包装包推到 npmjs.com。
-# 鉴权：npm Automation token（个人账号开启「发布需 2FA」时，automation token
-# 是 npm 官方为 CI 自动发布提供的免 OTP 凭证）。
-# 前置：npmjs.com → Access Tokens 新建 Automation 类型 token，存为 GitHub
-# 仓库 secret `NPM_TOKEN`。
+# cargo-dist 自定义 publish job：发布 npm 包装包到 npmjs.com。
+# 被 .github/workflows/release.yml 的 custom-publish-npm job 以 workflow_call 调用。
 #
-# 两种触发方式：
-# 1. release: published —— 用户/工具手动建 Release 时自动触发；
-#    注意：cargo-dist 用 GITHUB_TOKEN 建的 Release 不会触发本 workflow
-#    （GitHub 规则），所以实际发布走方式 2。
-# 2. workflow_dispatch  —— 手动触发：Release 建好后执行
-#    gh workflow run publish-npm.yml -f tag=v0.5.22
-name: Publish Package to npm
+# 鉴权：npm Trusted Publishing（OIDC）——不依赖密码 / API token，账号即使开启
+# 「发布需 2FA」也无需 OTP（npm publish 带 --provenance 走 OIDC 身份交换）。
+#
+# 一次性前置（npm 侧）：npmjs.com → Access → 添加 trusted publisher：
+#   Provider: GitHub
+#   Repository: zhMoody/llmux-cli-rs
+#   Workflow: release.yml   ← 关键！reusable workflow 场景 npm 校验 caller 文件名
+#
+# 发布依赖的 npm tarball（llmux-cli-<ver>-npm-package.tar.gz）由 cargo-dist 在
+# build-global-artifacts 阶段生成并作为 workflow artifact 上传，这里下载后发布。
+name: publish-npm
 
 on:
-  release:
-    types: [published]
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      tag:
-        description: "GitHub Release tag（如 v0.5.22），用于对齐 npm 版本"
+      # dist 会把 plan JSON（含版本、release、artifact 列表）传进来
+      plan:
         required: true
+        type: string
 
 permissions:
   contents: read
+  id-token: write # OIDC 令牌，供 npm publish --provenance
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      PLAN: ${{ inputs.plan }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      # trusted publishing 需要较新的 npm（≥11.5.1，随 Node 22.14+ 提供）
+      - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           registry-url: https://registry.npmjs.org
 
-      # 包装包本身零依赖，无需安装；只需把版本与 Release tag 对齐
-      # （release 事件取 release.tag_name；workflow_dispatch 取手动输入的 tag）
-      - name: Sync version with release tag
-        working-directory: npm/llmux
-        run: |
-          TAG="${{ github.event.release.tag_name || inputs.tag }}"
-          if [ -z "$TAG" ]; then
-            echo "错误：未提供 release tag（release 事件或 workflow_dispatch 输入均无）" >&2
-            exit 1
-          fi
-          npm pkg set version="${TAG#v}"
-          echo "将发布 llmux-cli@${TAG#v}（对应 GitHub Release $TAG）"
+      # 下载 cargo-dist 各 job 上传的 artifacts（含 *-npm-package.tar.gz）
+      - name: Fetch dist npm packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: artifacts-*
+          path: npm/
+          merge-multiple: true
 
-      - name: Publish to npm
-        working-directory: npm/llmux
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
+      # 逐个发布 plan 中带 npm tarball 的 release（provenance 由 OIDC 自动附加）
+      - name: Publish npm packages with provenance
+        run: |
+          set -euo pipefail
+          for release in $(echo "$PLAN" | jq -c '.releases[] | select([.artifacts[] | endswith("-npm-package.tar.gz")] | any)'); do
+            pkg=$(echo "$release" | jq -r '.artifacts[] | select(endswith("-npm-package.tar.gz"))')
+            echo "发布: ./npm/$pkg"
+            npm publish --provenance --access public "./npm/$pkg"
+          done
