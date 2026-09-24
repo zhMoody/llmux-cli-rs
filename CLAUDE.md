@@ -65,7 +65,7 @@ Cargo workspace，三个 crate + 一个前端。`Cargo.lock` 被 gitignore，不
   - `dispatcher.rs` — 路由与粘滞会话状态机的核心：
     - `sanitize_model_name`（剥 ANSI 与 Claude Code 的 `[1m]` 长上下文后缀）→ `resolve_model`：alias 绑定账户集 > alias 绑 vendor > 前缀回退（`claude-`→anthropic、`gemini-`/`models/gemini-`→gemini、其余→openai）。
     - `DispatchRouter::select(dispatch_key, accounts, preferred_id) -> (Vec<Account>, DispatchMeta)` 按 sticky 状态排出尝试顺序；`record_result(...)` 迁移状态。`Primary` 失败转 `Fallback`；连续 5 次成功或超过 backoff 才探测首选账户（30s 起，翻倍封顶 600s）；超过 1024 条目按「只保留 Fallback」淘汰。
-    - ⚠️ **`dispatch_state` 表已建但代码从未读写**：状态是内存态（`Arc<Mutex<DispatchRouter>>`），进程重启即丢失。`dispatcher.rs:71` 的注释是唯一线索，持久化是待补功能。
+    - 状态以内存为准（`Arc<Mutex<DispatchRouter>>`），通过 `snapshot()` / `restore()` 与 `dispatch_state` 表往返：启动时由 `main.rs` 载入，运行中由 `llmux-server` 的 `dispatch_flush` 任务每 1s 把**脏**状态全量重写落盘（快照在锁内取、DB 写在锁外）。`Instant` 计时在落盘时换算成墙钟毫秒，因此**进程停机时长会自动计入探测退避**——停满 `probe_backoff_secs` 后重启，首个请求即触发探测。
     - ⚠️ `is_retryable_status` **只覆盖 401/403/429，5xx 不重试**，且被测试锁定（改行为需同步改测试）。
   - `adapters/mod.rs` — 单一文件（无 openai.rs/anthropic.rs 拆分）：`Account`/`ChatRequest`/`ProviderRequest` 等 VO + `build_openai_request` / `build_openai_passthrough` + `execute_provider_request`（全局 `OnceLock` reqwest client）+ `test_provider_connection`（401/403 视为连通性通过）。
   - `proxy/mod.rs` — **Anthropic 透传在这，不在 adapters**：`build_anthropic_passthrough_request` + SSE/JSON 的 usage token 解析（逐字段取 max，非累加）。
