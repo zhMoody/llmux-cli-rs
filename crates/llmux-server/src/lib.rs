@@ -1,6 +1,7 @@
 pub mod api_docs;
 pub mod api_schemas;
 pub mod app;
+pub mod dispatch_flush;
 pub mod error;
 pub mod middleware;
 pub mod routes;
