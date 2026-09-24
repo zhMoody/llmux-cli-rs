@@ -72,7 +72,12 @@ async fn start(port_override: Option<u16>, use_tui: bool) -> anyhow::Result<()> 
 
     let master_key = get_or_create_master_key(&config.data_dir, config.master_key.as_deref())?;
 
-    let dispatch_router = Arc::new(TokioMutex::new(llmux_core::dispatcher::DispatchRouter::default()));
+    // 载入上次退出时的粘滞/failover 状态：重启后不重撞已知故障首选账户，
+    // 且停机时长会被自动计入探测退避（见 DispatchRouter::restore 的注释）。
+    let dispatch_rows = llmux_core::repo::load_dispatch_state(&pool).await?;
+    let dispatch_router = Arc::new(TokioMutex::new(
+        llmux_core::dispatcher::DispatchRouter::restore(dispatch_rows),
+    ));
     let test_queue = Arc::new(Mutex::new(TestQueueState::default()));
     let models_cache = Arc::new(Mutex::new(None));
 
@@ -115,6 +120,10 @@ async fn start(port_override: Option<u16>, use_tui: bool) -> anyhow::Result<()> 
         models_cache,
         tui_tx,
     };
+
+    // 后台定期落盘（test_state 走的是另一条路径，不受影响）
+    llmux_server::dispatch_flush::spawn_dispatch_flush(state.clone());
+
     let router = app(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], effective_port));
