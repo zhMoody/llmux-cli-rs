@@ -4,6 +4,7 @@
 //! 约定：所有函数为自由异步函数，第一个参数为 `&SqlitePool`；
 //! 需要原子性的复合操作（如“替换白名单”）在函数内部自建事务。
 
+use crate::dispatcher::DispatchStateRow;
 use crate::models::{Account, AccountPublic, ApiKey, ModelAlias, Vendor};
 use anyhow::Result;
 use sqlx::{Row, SqlitePool};
@@ -742,4 +743,68 @@ pub async fn list_alias_custom_models(pool: &SqlitePool) -> Result<Vec<(String, 
     )
     .fetch_all(pool)
     .await?)
+}
+
+// ---------------------------------------------------------------------------
+// dispatch_state（粘滞路由状态的持久化）
+// ---------------------------------------------------------------------------
+
+/// 载入全部粘滞路由状态。表为空时返回空 Vec。
+pub async fn load_dispatch_state(pool: &SqlitePool) -> Result<Vec<DispatchStateRow>> {
+    let rows = sqlx::query(
+        "SELECT dispatch_key, mode, sticky_fallback_id, consecutive_successes, last_probe_ms, probe_backoff_secs
+         FROM dispatch_state",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        out.push(DispatchStateRow {
+            dispatch_key: row.try_get("dispatch_key")?,
+            mode: row.try_get("mode")?,
+            sticky_fallback_id: row
+                .try_get::<Option<i64>, _>("sticky_fallback_id")?
+                .unwrap_or(0),
+            consecutive_successes: row
+                .try_get::<Option<i64>, _>("consecutive_successes")?
+                .unwrap_or(0),
+            last_probe_ms: row
+                .try_get::<Option<i64>, _>("last_probe_ms")?
+                .unwrap_or(0),
+            probe_backoff_secs: row
+                .try_get::<Option<i64>, _>("probe_backoff_secs")?
+                .unwrap_or(0),
+        });
+    }
+    Ok(out)
+}
+
+/// 全量重写粘滞路由状态：单事务内先清空再批量插入。
+///
+/// 用全量重写而非增量 upsert，是因为表规模极小（一个 alias/vendor 一行），
+/// 且能天然完成淘汰对账——内存中已不存在的 dispatch_key 会被一并删除。
+/// updated_at 交由列默认值 CURRENT_TIMESTAMP 填充。
+pub async fn save_dispatch_state(pool: &SqlitePool, rows: &[DispatchStateRow]) -> Result<()> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("DELETE FROM dispatch_state")
+        .execute(&mut *tx)
+        .await?;
+    for r in rows {
+        sqlx::query(
+            "INSERT INTO dispatch_state
+             (dispatch_key, mode, sticky_fallback_id, consecutive_successes, last_probe_ms, probe_backoff_secs)
+             VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&r.dispatch_key)
+        .bind(&r.mode)
+        .bind(r.sticky_fallback_id)
+        .bind(r.consecutive_successes)
+        .bind(r.last_probe_ms)
+        .bind(r.probe_backoff_secs)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(())
 }

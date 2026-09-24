@@ -1,5 +1,6 @@
 use llmux_core::adapters::Account;
 use llmux_core::dispatcher::{DispatchRouter, DispatchStateRow};
+use llmux_core::repo;
 
 fn account(id: i64, name: &str) -> Account {
     Account {
@@ -201,4 +202,49 @@ fn dirty_flag_lifecycle() {
 
     router.clear_dirty();
     assert!(!router.is_dirty(), "clear_dirty 后应为干净");
+}
+
+/// 建一个带完整 schema 的内存库（与 core_contract.rs 的 memory_db 一致）。
+async fn memory_db() -> sqlx::SqlitePool {
+    let mut pool = llmux_core::db::connect_sqlite("sqlite::memory:")
+        .await
+        .expect("connect memory sqlite");
+    llmux_core::db::init_db(&mut pool, "sqlite::memory:")
+        .await
+        .expect("initialize schema");
+    pool
+}
+
+#[tokio::test]
+async fn save_and_load_dispatch_state_round_trip_and_full_rewrite() {
+    let pool = memory_db().await;
+
+    let rows = vec![
+        row("alias:a", "fallback", 2, epoch_millis() - 1_000, 60),
+        row("alias:b", "primary", 0, 0, 0),
+    ];
+    repo::save_dispatch_state(&pool, &rows).await.unwrap();
+
+    let mut loaded = repo::load_dispatch_state(&pool).await.unwrap();
+    loaded.sort_by(|a, b| a.dispatch_key.cmp(&b.dispatch_key));
+    assert_eq!(loaded.len(), 2);
+    assert_eq!(loaded[0].dispatch_key, "alias:a");
+    assert_eq!(loaded[0].mode, "fallback");
+    assert_eq!(loaded[0].sticky_fallback_id, 2);
+    assert_eq!(loaded[0].probe_backoff_secs, 60);
+    assert_eq!(loaded[1].dispatch_key, "alias:b");
+    assert_eq!(loaded[1].mode, "primary");
+
+    // 全量重写：只留一行，旧行必须被清除（淘汰对账依赖此语义）
+    repo::save_dispatch_state(&pool, &rows[..1]).await.unwrap();
+    let loaded = repo::load_dispatch_state(&pool).await.unwrap();
+    assert_eq!(loaded.len(), 1, "全量重写应删除内存中已不存在的行");
+    assert_eq!(loaded[0].dispatch_key, "alias:a");
+}
+
+#[tokio::test]
+async fn load_dispatch_state_on_empty_table_returns_empty() {
+    let pool = memory_db().await;
+    let loaded = repo::load_dispatch_state(&pool).await.unwrap();
+    assert!(loaded.is_empty());
 }
