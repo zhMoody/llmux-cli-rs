@@ -4,7 +4,7 @@ use crate::models::ModelAlias;
 use serde_json;
 use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
-use std::time::Instant;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModelResolution {
@@ -44,6 +44,40 @@ enum StickyMode {
     },
 }
 
+/// 当前墙钟的 unix 毫秒。
+fn now_millis() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64
+}
+
+/// 把持久化的墙钟毫秒还原成用于退避计时的 Instant。
+///
+/// 用「当前时刻减去已经过的时长」还原，使 elapsed() 自然等于「距上次探测过去了
+/// 多久」——进程停机时长会被自动计入。停机超过 probe_backoff_secs 时，重启后
+/// 首个请求即触发探测。
+///
+/// .max(0) 防时钟回拨（last_probe_ms 落在未来）时负数转 u64 溢出。
+fn instant_from_millis(last_probe_ms: i64) -> Instant {
+    let age_ms = (now_millis() - last_probe_ms).max(0) as u64;
+    Instant::now() - Duration::from_millis(age_ms)
+}
+
+/// 粘滞路由状态的持久化行，与 dispatch_state 表列一一对应。
+///
+/// mode 为 "primary" / "fallback"，必须匹配表的 CHECK 约束；
+/// Primary 行不承载其余字段的语义（restore 时忽略）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DispatchStateRow {
+    pub dispatch_key: String,
+    pub mode: String,
+    pub sticky_fallback_id: i64,
+    pub consecutive_successes: i64,
+    pub last_probe_ms: i64,
+    pub probe_backoff_secs: i64,
+}
+
 #[derive(Debug, Clone)]
 struct StickyEntry {
     mode: StickyMode,
@@ -73,6 +107,8 @@ const MAX_ENTRIES: usize = 1024;
 #[derive(Debug, Clone, Default)]
 pub struct DispatchRouter {
     entries: HashMap<String, StickyEntry>,
+    /// 是否存在尚未落盘的状态变更（由后台 flush 任务消费）。
+    dirty: bool,
 }
 
 impl DispatchRouter {
@@ -83,45 +119,20 @@ impl DispatchRouter {
         accounts: &[Account],
         preferred_id: i64,
     ) -> (Vec<Account>, DispatchMeta) {
-        let entry = self.entries.entry(dispatch_key.to_string()).or_default();
+        let mut changed = false;
+        let result = {
+            let entry = self.entries.entry(dispatch_key.to_string()).or_default();
 
-        let preferred_exists = accounts.iter().any(|a| a.id == preferred_id);
-        if !preferred_exists {
-            entry.mode = StickyMode::Primary;
-        }
-
-        match &entry.mode {
-            StickyMode::Primary => {
-                let ordered = order_with_preferred_first(accounts, preferred_id);
-                (
-                    ordered,
-                    DispatchMeta {
-                        is_probe: false,
-                        preferred_id,
-                    },
-                )
+            let preferred_exists = accounts.iter().any(|a| a.id == preferred_id);
+            if !preferred_exists && !matches!(entry.mode, StickyMode::Primary) {
+                // 首选账户已不在该 alias 的绑定中 → 强制回到 Primary
+                entry.mode = StickyMode::Primary;
+                changed = true;
             }
-            StickyMode::Fallback {
-                sticky_fallback_id,
-                consecutive_successes,
-                last_probe,
-                probe_backoff_secs,
-            } => {
-                let should_probe = *consecutive_successes >= PROBE_TRIGGER_COUNT
-                    || last_probe.elapsed().as_secs() >= *probe_backoff_secs;
 
-                if should_probe {
+            match &entry.mode {
+                StickyMode::Primary => {
                     let ordered = order_with_preferred_first(accounts, preferred_id);
-                    (
-                        ordered,
-                        DispatchMeta {
-                            is_probe: true,
-                            preferred_id,
-                        },
-                    )
-                } else {
-                    let ordered =
-                        order_with_fallback_first(accounts, preferred_id, *sticky_fallback_id);
                     (
                         ordered,
                         DispatchMeta {
@@ -130,8 +141,42 @@ impl DispatchRouter {
                         },
                     )
                 }
+                StickyMode::Fallback {
+                    sticky_fallback_id,
+                    consecutive_successes,
+                    last_probe,
+                    probe_backoff_secs,
+                } => {
+                    let should_probe = *consecutive_successes >= PROBE_TRIGGER_COUNT
+                        || last_probe.elapsed().as_secs() >= *probe_backoff_secs;
+
+                    if should_probe {
+                        let ordered = order_with_preferred_first(accounts, preferred_id);
+                        (
+                            ordered,
+                            DispatchMeta {
+                                is_probe: true,
+                                preferred_id,
+                            },
+                        )
+                    } else {
+                        let ordered =
+                            order_with_fallback_first(accounts, preferred_id, *sticky_fallback_id);
+                        (
+                            ordered,
+                            DispatchMeta {
+                                is_probe: false,
+                                preferred_id,
+                            },
+                        )
+                    }
+                }
             }
+        };
+        if changed {
+            self.dirty = true;
         }
+        result
     }
 
     /// Update state after a dispatch attempt completes.
@@ -144,58 +189,69 @@ impl DispatchRouter {
         used_account_id: Option<i64>,
         success: bool,
     ) {
-        self.maybe_evict();
-        let entry = self.entries.entry(dispatch_key.to_string()).or_default();
+        // 淘汰本身也是必须落盘的变更（删除内存中的 entry 需要同步删除表里的行）
+        let mut changed = self.maybe_evict();
+        {
+            let entry = self.entries.entry(dispatch_key.to_string()).or_default();
 
-        match &mut entry.mode {
-            StickyMode::Primary => {
-                if !success || used_account_id != Some(meta.preferred_id) {
-                    let sticky = used_account_id.filter(|&id| id != meta.preferred_id);
-                    entry.mode = StickyMode::Fallback {
-                        sticky_fallback_id: sticky.unwrap_or(0),
-                        consecutive_successes: if sticky.is_some() { 1 } else { 0 },
-                        last_probe: Instant::now(),
-                        probe_backoff_secs: INITIAL_PROBE_BACKOFF_SECS,
-                    };
-                }
-            }
-            StickyMode::Fallback {
-                sticky_fallback_id,
-                consecutive_successes,
-                last_probe,
-                probe_backoff_secs,
-            } => {
-                if meta.is_probe {
-                    if success && used_account_id == Some(meta.preferred_id) {
-                        entry.mode = StickyMode::Primary;
-                    } else {
-                        *probe_backoff_secs =
-                            (*probe_backoff_secs * 2).min(MAX_PROBE_BACKOFF_SECS);
-                        *consecutive_successes = 0;
-                        *last_probe = Instant::now();
-                        if let Some(id) = used_account_id {
-                            if id != meta.preferred_id {
-                                *sticky_fallback_id = id;
-                            }
-                        }
+            match &mut entry.mode {
+                StickyMode::Primary => {
+                    if !success || used_account_id != Some(meta.preferred_id) {
+                        let sticky = used_account_id.filter(|&id| id != meta.preferred_id);
+                        entry.mode = StickyMode::Fallback {
+                            sticky_fallback_id: sticky.unwrap_or(0),
+                            consecutive_successes: if sticky.is_some() { 1 } else { 0 },
+                            last_probe: Instant::now(),
+                            probe_backoff_secs: INITIAL_PROBE_BACKOFF_SECS,
+                        };
+                        changed = true;
                     }
-                } else {
-                    if success {
+                }
+                StickyMode::Fallback {
+                    sticky_fallback_id,
+                    consecutive_successes,
+                    last_probe,
+                    probe_backoff_secs,
+                } => {
+                    if meta.is_probe {
+                        if success && used_account_id == Some(meta.preferred_id) {
+                            entry.mode = StickyMode::Primary;
+                            changed = true;
+                        } else {
+                            *probe_backoff_secs =
+                                (*probe_backoff_secs * 2).min(MAX_PROBE_BACKOFF_SECS);
+                            *consecutive_successes = 0;
+                            *last_probe = Instant::now();
+                            if let Some(id) = used_account_id {
+                                if id != meta.preferred_id {
+                                    *sticky_fallback_id = id;
+                                }
+                            }
+                            changed = true;
+                        }
+                    } else if success {
                         *consecutive_successes += 1;
                         if let Some(id) = used_account_id {
                             *sticky_fallback_id = id;
                         }
+                        changed = true;
                     }
                 }
             }
+        }
+        if changed {
+            self.dirty = true;
         }
     }
 
     /// Drop Primary entries when the map grows beyond MAX_ENTRIES.
     /// Fallback entries are kept — they represent active failover state.
-    fn maybe_evict(&mut self) {
+    ///
+    /// 返回是否发生了淘汰：删除内存中的 entry 必须同步删除表里的行，
+    /// 因此淘汰本身也要让调用方标脏。
+    fn maybe_evict(&mut self) -> bool {
         if self.entries.len() <= MAX_ENTRIES {
-            return;
+            return false;
         }
         self.entries.retain(|_, e| {
             matches!(e.mode, StickyMode::Fallback { .. })
@@ -204,6 +260,74 @@ impl DispatchRouter {
             "DispatchRouter evicted stale entries, {} fallback entries retained",
             self.entries.len()
         );
+        true
+    }
+
+    /// 导出全部 entry 供持久化（含 Primary，便于全量重写时对账）。
+    pub fn snapshot(&self) -> Vec<DispatchStateRow> {
+        self.entries
+            .iter()
+            .map(|(key, entry)| match &entry.mode {
+                StickyMode::Primary => DispatchStateRow {
+                    dispatch_key: key.clone(),
+                    mode: "primary".to_string(),
+                    sticky_fallback_id: 0,
+                    consecutive_successes: 0,
+                    last_probe_ms: 0,
+                    probe_backoff_secs: 0,
+                },
+                StickyMode::Fallback {
+                    sticky_fallback_id,
+                    consecutive_successes,
+                    last_probe,
+                    probe_backoff_secs,
+                } => {
+                    // last_probe 是单调时钟，落盘换算成墙钟毫秒
+                    let age_ms = last_probe.elapsed().as_millis() as i64;
+                    DispatchStateRow {
+                        dispatch_key: key.clone(),
+                        mode: "fallback".to_string(),
+                        sticky_fallback_id: *sticky_fallback_id,
+                        consecutive_successes: *consecutive_successes as i64,
+                        last_probe_ms: now_millis() - age_ms,
+                        probe_backoff_secs: *probe_backoff_secs as i64,
+                    }
+                }
+            })
+            .collect()
+    }
+
+    /// 从持久化行重建 router。未知 mode 按 Primary 处理（表有 CHECK 约束，
+    /// 此处仅作防御，避免脏数据导致 panic）。
+    pub fn restore(rows: Vec<DispatchStateRow>) -> Self {
+        let mut entries = HashMap::with_capacity(rows.len());
+        for row in rows {
+            let mode = if row.mode == "fallback" {
+                StickyMode::Fallback {
+                    sticky_fallback_id: row.sticky_fallback_id,
+                    consecutive_successes: row.consecutive_successes.max(0) as u32,
+                    last_probe: instant_from_millis(row.last_probe_ms),
+                    probe_backoff_secs: row.probe_backoff_secs.max(0) as u64,
+                }
+            } else {
+                StickyMode::Primary
+            };
+            entries.insert(row.dispatch_key, StickyEntry { mode });
+        }
+        Self {
+            entries,
+            dirty: false,
+        }
+    }
+
+    /// 是否有未落盘的状态变更。
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
+    /// 由后台任务在取过快照后调用。
+    pub fn clear_dirty(&mut self) {
+        self.dirty = false;
     }
 }
 
