@@ -102,8 +102,9 @@ const MAX_ENTRIES: usize = 1024;
 
 /// Sticky-session routing state machine with failover and exponential backoff.
 ///
-/// 注意：spec 要求 `dispatch_state` 表持久化回退状态；当前实现保持内存态
-/// （Instant 计时不可序列化），表已建好供后续持久化改造使用。
+/// 状态以内存为准（entries），通过 snapshot() / restore() 与 dispatch_state
+/// 表往返：进程启动时 restore 载入，运行中由 llmux-server 的 dispatch_flush
+/// 任务定期把脏状态落盘（Instant 计时在落盘时换算成墙钟毫秒）。
 #[derive(Debug, Clone, Default)]
 pub struct DispatchRouter {
     entries: HashMap<String, StickyEntry>,

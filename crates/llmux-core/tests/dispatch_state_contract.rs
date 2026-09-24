@@ -62,6 +62,10 @@ fn fallback_state_survives_snapshot_restore_round_trip() {
     assert_eq!(again[0].mode, "fallback");
     assert_eq!(again[0].sticky_fallback_id, 2);
     assert_eq!(again[0].probe_backoff_secs, 30);
+    assert_eq!(
+        again[0].consecutive_successes, 1,
+        "consecutive_successes 是探测条件①的依据，必须往返保真"
+    );
 }
 
 #[test]
@@ -202,6 +206,54 @@ fn dirty_flag_lifecycle() {
 
     router.clear_dirty();
     assert!(!router.is_dirty(), "clear_dirty 后应为干净");
+}
+
+/// snapshot 必须把「距上次探测已过多久」换算回墙钟写入，
+/// 而不是写入当前时刻——后者会让退避永远显得「刚探测过」，
+/// 使「停机时长计入退避」在真实重启场景下失效。
+#[test]
+fn snapshot_preserves_last_probe_age_within_tolerance() {
+    let router = DispatchRouter::restore(vec![row(
+        "alias:x",
+        "fallback",
+        2,
+        epoch_millis() - 100_000,
+        600,
+    )]);
+
+    let rows = router.snapshot();
+    let age_ms = epoch_millis() - rows[0].last_probe_ms;
+    assert!(
+        (99_000..=102_000).contains(&age_ms),
+        "应保留约 100s 的已过时长，实际 {age_ms}ms（若接近 0 说明写成了当前时刻）"
+    );
+}
+
+/// 淘汰会删除内存中的 entry，必须标脏以便同步删除表里的行；
+/// 否则被淘汰的行永远残留，且每次重启被 load 回来再淘汰一遍。
+#[test]
+fn eviction_marks_router_dirty() {
+    let accounts = vec![account(1, "primary")];
+    let mut router = DispatchRouter::default();
+
+    // select 不触发淘汰，先堆到超过 MAX_ENTRIES(1024)
+    for i in 0..1025 {
+        router.select(&format!("alias:k{i}"), &accounts, 1);
+    }
+    router.clear_dirty();
+    assert!(!router.is_dirty());
+
+    // 本次 record_result 会先触发淘汰（清掉全部 Primary），自身无状态迁移
+    let (_, meta) = router.select("alias:k0", &accounts, 1);
+    router.record_result("alias:k0", &meta, Some(1), true);
+
+    assert!(
+        router.is_dirty(),
+        "淘汰发生了就必须标脏，否则被淘汰的行永驻 DB"
+    );
+    let rows = router.snapshot();
+    assert_eq!(rows.len(), 1, "其余 Primary entry 应已被淘汰");
+    assert_eq!(rows[0].dispatch_key, "alias:k0");
 }
 
 /// 建一个带完整 schema 的内存库（与 core_contract.rs 的 memory_db 一致）。
