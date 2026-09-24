@@ -1,5 +1,6 @@
 pub mod claude;
 pub mod codex;
+pub mod codex_toml;
 pub mod gemini;
 pub mod helpers;
 
