@@ -38,6 +38,8 @@ Thumbs.db
 
 # Rust
 /target/
-Cargo.lock
+# Cargo.lock 必须进版本库：可执行 crate 需要可复现构建。
+# 曾经 gitignore 掉它，导致 CI 每次全新解析依赖，撞上 zip 2.6.x 的
+# breaking change 把 utoipa-swagger-ui 8.1.0 的 build.rs 编译炸掉。
 **/*.rs.bk
 *.pdb

@@ -59,7 +59,7 @@ scripts/release.sh [version]    # 自增或指定版本 → 改 Cargo.toml → �
 
 ## 架构概览
 
-Cargo workspace，三个 crate + 一个前端。`Cargo.lock` 被 gitignore，不进版本库。
+Cargo workspace，三个 crate + 一个前端。`Cargo.lock` **必须进版本库**（可执行 crate 要可复现构建）：CI 里没有 lock 会全新解析依赖，v0.5.27 就因此撞上 zip 2.6.x 的 breaking change（`ZipFile` 加泛型、`InvalidArchive` 改收 `Cow`），把 `utoipa-swagger-ui 8.1.0` 的 build.rs 编译炸掉。升级 `utoipa-swagger-ui` 到 10.x 需要同时升 utoipa 6 + axum 0.8，不是小改。
 
 - **`crates/llmux-core`** — 领域层，无 HTTP：
   - `dispatcher.rs` — 路由与粘滞会话状态机的核心：
@@ -106,6 +106,7 @@ Cargo workspace，三个 crate + 一个前端。`Cargo.lock` 被 gitignore，不
 ## 关键工程陷阱
 
 - **前端 `dist` 必须构建并提交**：CI 里没有任何 bun 步骤（`scripts/build-ui.sh` 无人调用），release 编译时 `rust-embed` 直接嵌入仓库里已提交的 `llmux_ui/dist`。忘了构建提交，发布出去的就是旧 UI，且**静默无报错**。
+- **`Cargo.lock` 必须提交，且不要在发布前 `cargo update`**：依赖图里 `utoipa-swagger-ui 8.1.0` 的 build.rs 与 `zip >= 2.6` 不兼容，全新解析会直接编译失败。本地构建通过不代表 CI 通过——本地靠 lock 兜住了。
 - **改 schema 必须删库重建**（或走 `api/settings/reset`），没有增量迁移。
 - `docs/release.md` 部分内容已失效：`gh workflow run publish-npm.yml` 不可用（该 workflow 只有 `workflow_call`），`npm/llmux/package.json` 已不存在（npm 包描述由 cargo-dist 依据 `dist-workspace.toml` + `crates/llmux-bin/Cargo.toml` 的 `readme` 字段生成）。
 - 前端大文件：`ModelBrowser.tsx`(697) / `Dashboard.tsx`(497) / `CodexPanel.tsx`(388)，改动风险集中在这几处。

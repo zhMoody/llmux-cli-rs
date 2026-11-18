@@ -79,8 +79,9 @@ cargo metadata --no-deps --format-version 1 >/dev/null 2>&1 || {
 echo "✓ 版本号已同步: Cargo.toml / Cargo.lock"
 
 # ── 4. 提交 + 打 tag + 推送 ──────────────────────────────────
-# 注意：Cargo.lock 在 .gitignore 中，不进版本库，只 add Cargo.toml
-git add Cargo.toml
+# Cargo.lock 必须一起提交：CI 无 lock 时会全新解析依赖，可能撞上游 breaking
+# change 导致构建失败（v0.5.27 就因为 zip 2.6.1 挂过一次）。
+git add Cargo.toml Cargo.lock
 git commit -m "release: v$NEW"
 git tag "v$NEW"
 git push origin main
