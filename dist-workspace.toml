@@ -17,12 +17,6 @@ targets = [
   "x86_64-unknown-linux-gnu",
   "x86_64-pc-windows-msvc",
 ]
-
-# dist 默认把 aarch64-apple-darwin 派到 `macos-14`，但 GitHub 那台 arm64 实例
-# 长期报 "configuration 'macos-14-arm64-us-default' is not supported"（任务 1s 被取消）。
-# 显式指定更新的 arm64 镜像绕开它。
-[dist.github-custom-runners]
-aarch64-apple-darwin = "macos-15"
 # Where to host releases
 hosting = "github"
 # Homebrew tap to publish the formula to (repo name must start with "homebrew-")
@@ -34,3 +28,10 @@ npm-package = "llmux-cli"
 # npm 发布不用内置 NODE_AUTH_TOKEN job，改用自定义 reusable workflow（./publish-npm）
 # 走 OIDC + --provenance（dist 会给自定义 job 默认 id-token: write）
 publish-jobs = ["homebrew", "./publish-npm"]
+
+# 注意：TOML 里表头之后再出现的键都会归属该表，所以自定义 runner 必须放文件末尾。
+# dist 默认把 aarch64-apple-darwin 派到 `macos-14`，但 GitHub 那台 arm64 实例
+# 长期报 "configuration 'macos-14-arm64-us-default' is not supported"（任务 1s 被取消）。
+# 显式指定更新的 arm64 镜像绕开它。
+[dist.github-custom-runners]
+aarch64-apple-darwin = "macos-15"
