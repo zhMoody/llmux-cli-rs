@@ -50,6 +50,15 @@ export const Modal: React.FC<ModalProps> = ({
   const restoreFocusRef = useRef<Element | null>(null);
   const titleId = useId();
 
+  // onClose 放 ref：调用方普遍传内联箭头函数，引用每次渲染都变。
+  // 若直接进 effect 依赖，弹窗内每输入一个字符都会触发 cleanup（还原焦点 + 解锁滚动）再重建，
+  // 表现为输入框失焦、必须再次点击才能继续输入。
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
+  // 只在「开/关」时执行：滚动锁、初始焦点、焦点陷阱、关闭后还原焦点
   useEffect(() => {
     if (!open) return;
     restoreFocusRef.current = document.activeElement;
@@ -65,7 +74,7 @@ export const Modal: React.FC<ModalProps> = ({
         const target = e.target as HTMLElement | null;
         const tag = target?.tagName;
         if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== "Tab" || !dialog) return;
@@ -95,7 +104,7 @@ export const Modal: React.FC<ModalProps> = ({
       if (restore instanceof HTMLElement) restore.focus();
       restoreFocusRef.current = null;
     };
-  }, [open, onClose]);
+  }, [open]);
 
   // 用 portal 挂到 body：脱离页面容器（避免容器 transform 使 fixed 遮罩相对容器定位而漏顶）
   return createPortal(
