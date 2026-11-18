@@ -17,6 +17,12 @@ targets = [
   "x86_64-unknown-linux-gnu",
   "x86_64-pc-windows-msvc",
 ]
+
+# dist 默认把 aarch64-apple-darwin 派到 `macos-14`，但 GitHub 那台 arm64 实例
+# 长期报 "configuration 'macos-14-arm64-us-default' is not supported"（任务 1s 被取消）。
+# 显式指定更新的 arm64 镜像绕开它。
+[dist.github-custom-runners]
+aarch64-apple-darwin = "macos-15"
 # Where to host releases
 hosting = "github"
 # Homebrew tap to publish the formula to (repo name must start with "homebrew-")
